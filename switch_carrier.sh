@@ -1,30 +1,109 @@
 #!/system/bin/sh
-# Циклическая смена оператора при нажатии кнопки Action в Magisk
-# 0 → 1 → 2 → 0 ...
+# switch_carrier.sh — Выбор профиля при нажатии Action в Magisk
+# Кнопки громкости переключают профили, кнопка питания подтверждает
 
-SETTINGS="/data/adb/modules/GPay-Spoofer/settings"
-LOGFILE="/data/adb/Gpay-Spoofer.log"
+MODDIR="/data/adb/modules/GPay-Spoofer"
+SETTINGS="$MODDIR/settings"
 
-# Текущее значение
+ui_print "========================================"
+ui_print "  GPay-Spoofer — Выбор профиля"
+ui_print "========================================"
+ui_print ""
+ui_print "Профиль 0: RU → Latvia (GPay)"
+ui_print "Профиль 1: RU → AT&T  (Звонки)"
+ui.print "Профиль 2: RU → T-Mobile (Общий)"
+ui_print ""
+ui_print "Громкость ВВЕРХ / ВНИЗ — переключить"
+ui_print "Кнопка питания — подтвердить"
+ui_print ""
+
+# Текущий профиль
 CURRENT=$(grep "^selected_carrier=" "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | tr -d '[:space:]')
 CURRENT=${CURRENT:-0}
+PROFILE=$CURRENT
 
-# Цикл: 0→1→2→0
-case "$CURRENT" in
-    0) NEXT=1 ;;
-    1) NEXT=2 ;;
-    2) NEXT=0 ;;
-    *) NEXT=0 ;;
+ui_print "Текущий: Профиль $PROFILE"
+ui_print ""
+
+# === Ищем устройство ввода через getevent ===
+EVENT_FILE=""
+if command -v getevent >/dev/null 2>&1; then
+    # getevent -p выводит список устройств
+    # Ищем первое input-устройство
+    EVENT_FILE=$(getevent -p 2>/dev/null | grep -B1 "key 0074" | grep "/dev/input" | head -1 | awk '{print $1}')
+fi
+
+if [ -z "$EVENT_FILE" ] || [ ! -e "$EVENT_FILE" ]; then
+    for i in $(seq 0 15); do
+        ev="/dev/input/event$i"
+        if [ -e "$ev" ]; then
+            EVENT_FILE="$ev"
+            break
+        fi
+    done
+fi
+
+if [ -z "$EVENT_FILE" ]; then
+    ui_print "⚠️ Устройства ввода не найдены"
+    ui_print "Используем профиль: $PROFILE"
+else
+    ui_print "Устройство: $EVENT_FILE"
+    ui_print "Ожидание нажатий..."
+    ui_print ""
+
+    # Читаем события через dd (структура input_event = 64 байта)
+    # Структура: time_sec(8) + time_usec(8) + type(8) + code(8) + value(16)
+    # type: байт 16-19 → hex позиция 32 (8 символов)
+    # code: байт 20-23 → hex позиция 40 (8 символов)
+    while true; do
+        EVENT=$(dd if="$EVENT_FILE" bs=64 count=1 2>/dev/null | od -A n -t x1 | tr -d ' \n')
+
+        TYPE="${EVENT:32:8}"
+        CODE="${EVENT:40:8}"
+
+        TYPE_DEC=$((16#${TYPE}))
+        CODE_DEC=$((16#${CODE}))
+
+        # type=1 (клавиша)
+        if [ "$TYPE_DEC" -eq 1 ]; then
+            case "$CODE_DEC" in
+                115)
+                    # Volume UP — следующий
+                    PROFILE=$(( (PROFILE + 1) % 3 ))
+                    ui_print "  → Профиль $PROFILE"
+                    ;;
+                114)
+                    # Volume DOWN — предыдущий
+                    PROFILE=$(( (PROFILE - 1 + 3) % 3 ))
+                    ui_print "  → Профиль $PROFILE"
+                    ;;
+                116)
+                    # Power — подтвердить
+                    ui_print ""
+                    ui_print "✅ Профиль $PROFILE подтверждён"
+                    break
+                    ;;
+            esac
+        fi
+    done
+fi
+
+# === Запись профиля ===
+case "$PROFILE" in
+    0) NAME="Latvijas Mobilais (Latvia)" ;;
+    1) NAME="AT&T (USA)" ;;
+    2) NAME="T-Mobile (USA)" ;;
 esac
 
-# Сохраняем новое значение
-sed -i "s/^selected_carrier=.*/selected_carrier=$NEXT/" "$SETTINGS"
+cat > "$SETTINGS" <<EOF
+[Выбор оператора]
+selected_carrier=$PROFILE
+EOF
 
-# Имена операторов для лога
-NAMES=(
-    "Latvijas Mobilais (Latvia)"
-    "AT&T (USA)"
-    "T-Mobile (USA)"
-)
-
-echo "[$(date)] 🔄 Оператор переключён: $CURRENT → $NEXT (${NAMES[$NEXT]})" >> "$LOGFILE"
+ui_print ""
+ui_print "========================================"
+ui_print "  Профиль: $PROFILE"
+ui_print "  Оператор: $NAME"
+ui_print "========================================"
+ui_print ""
+ui_print "Готово! Перезагрузите устройство."
