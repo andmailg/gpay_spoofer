@@ -29,16 +29,12 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           ARCHIVE_NAME="gpay-spoofer-v${VERSION}.zip"
-          # Создаём временную директорию без .git
           TMP_DIR=$(mktemp -d)
           cp -r * "$TMP_DIR/" 2>/dev/null
-          cp .gitignore "$TMP_DIR/" 2>/dev/null || true
           rm -rf "$TMP_DIR/.git"
-          # Архивируем содержимое в текущий каталог (репозиторий)
-          (cd "$TMP_DIR" && zip -r "${ARCHIVE_NAME}" .)
+          (cd "$TMP_DIR" && zip -r "/github/workspace/${ARCHIVE_NAME}" .)
           echo "archive_name=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
-          echo "Created: $ARCHIVE_NAME"
-          ls -lh "${ARCHIVE_NAME}"
+          ls -lh "/github/workspace/${ARCHIVE_NAME}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
