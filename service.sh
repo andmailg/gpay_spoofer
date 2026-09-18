@@ -1,25 +1,21 @@
 #!/system/bin/sh
 # Автоспуфер оператора: Россия → Выбранный оператор
 
-# 1. Настройка путей
 LOGFILE="/data/adb/Gpay-Spoofer.log"
 MODDIR="/data/adb/modules/GPay-Spoofer"
 CONFIG="$MODDIR/config.txt"
 SETTINGS="$MODDIR/settings"
 OLD_PROPS_FILE="$MODDIR/old_props.txt"
 
-# 2. Ожидание загрузки системы
 until [ "$(getprop sys.boot_completed)" = "1" ]; do
     sleep 2
 done
 
-# Ждем инициализации стека телефонии и SIM-карт
-sleep 10
+sleep 5
 
 echo "--------------------------------------" >> "$LOGFILE"
 echo "[$(date)] 🚀 GPay-Spoofer запущен" >> "$LOGFILE"
 
-# 3. Загрузка конфигурации
 if [ -f "$CONFIG" ]; then
     . "$CONFIG"
 else
@@ -27,18 +23,14 @@ else
     exit 1
 fi
 
-# 4. Чтение выбранного оператора из настроек
 SELECTED_CARRIER="0"
 if [ -f "$SETTINGS" ]; then
-    SELECTED_CARRIER=$(grep "^selected_carrier=" "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | tr -d '[:space:]')
-    if [ -z "$SELECTED_CARRIER" ]; then
-        SELECTED_CARRIER="0"
-    fi
+    VAL=$(grep "^selected_carrier=" "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | tr -d '[:space:]')
+    [ -n "$VAL" ] && SELECTED_CARRIER="$VAL"
 fi
 
 echo "[$(date)] Выбранный оператор (ID): $SELECTED_CARRIER" >> "$LOGFILE"
 
-# 5. Выбор параметров оператора на основе ID
 case "$SELECTED_CARRIER" in
     0)
         TARGET_ALPHA="$LM_ALPHA"
@@ -63,19 +55,19 @@ case "$SELECTED_CARRIER" in
         TARGET_NUMERIC="$LM_NUMERIC"
         TARGET_ISO="$LM_ISO"
         TARGET_NAME="Latvijas Mobilais (Latvia) [default]"
-        echo "[$(date)] ⚠️ Неизвестный ID, используется Latvijas Mobilais" >> "$LOGFILE"
         ;;
 esac
 
-echo "[$(date)] ✅ Выбран оператор: $TARGET_NAME" >> "$LOGFILE"
-
-# 6. Анализ SIM-карт (исправлены синтаксические ошибки экранирования пайпов)
 sim_country=$(getprop gsm.sim.operator.iso-country)
 clean_sim_country=$(echo "$sim_country" | tr -d ' ,' )
 
 echo "[$(date)] Статус SIM: '$sim_country'" >> "$LOGFILE"
 
-has_ru=$(echo "$sim_country" | grep -q "$SOURCE_ISO" && echo true || echo false)
+has_ru=false
+case "$sim_country" in
+    *"$SOURCE_ISO"*) has_ru=true ;;
+esac
+
 only_ru=false
 if [ "$clean_sim_country" = "$SOURCE_ISO" ] || [ "$clean_sim_country" = "${SOURCE_ISO}${SOURCE_ISO}" ]; then
     only_ru=true
@@ -84,7 +76,6 @@ fi
 if [ "$has_ru" = "true" ] && [ "$only_ru" = "true" ]; then
     echo "[$(date)] ⚠️ Обнаружена только RU SIM. Применяем спуф ($TARGET_NAME)." >> "$LOGFILE"
 
-    # Сохраняем текущие значения перед подменой
     {
         getprop gsm.sim.operator.alpha
         getprop gsm.operator.alpha
@@ -95,7 +86,6 @@ if [ "$has_ru" = "true" ] && [ "$only_ru" = "true" ]; then
         getprop ro.cdma.home.operator.numeric
     } > "$OLD_PROPS_FILE"
 
-    # Применяем подмену
     resetprop gsm.sim.operator.alpha "$TARGET_ALPHA"
     resetprop gsm.operator.alpha "$TARGET_ALPHA"
     resetprop gsm.sim.operator.numeric "$TARGET_NUMERIC"
@@ -105,15 +95,9 @@ if [ "$has_ru" = "true" ] && [ "$only_ru" = "true" ]; then
     resetprop ro.cdma.home.operator.numeric "$TARGET_NUMERIC"
 
     echo "[$(date)] ✅ Спуфинг применен: $SOURCE_ISO -> $TARGET_ISO ($TARGET_NAME)" >> "$LOGFILE"
-
-elif [ "$has_ru" = "true" ] && [ "$only_ru" = "false" ]; then
-    echo "[$(date)] ℹ️ Найдена комбинация SIM (RU + другая). Спуфинг отключен." >> "$LOGFILE"
-    [ -f "$OLD_PROPS_FILE" ] && rm "$OLD_PROPS_FILE"
-
 else
-    echo "[$(date)] ℹ️ Российских SIM не обнаружено. Спуфинг не требуется." >> "$LOGFILE"
+    echo "[$(date)] ℹ️ Условия для спуфинга не выполнены." >> "$LOGFILE"
     [ -f "$OLD_PROPS_FILE" ] && rm "$OLD_PROPS_FILE"
 fi
 
-# 7. Дублируем лог на внутреннюю память
 cp "$LOGFILE" /sdcard/Gpay-Spoofer.log 2>/dev/null

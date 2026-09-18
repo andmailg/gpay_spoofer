@@ -1,6 +1,6 @@
 id=GPay-Spoofer
 name=GPay region Spoof
-version=1.2.2 (Profile Selection)
-versionCode=6
+version=1.2.3 (Profile Selection)
+versionCode=7
 author=Gemini
 description=Автоматическая подмена данных оператора при российской SIM. Выбор профиля при установке и через Magisk Settings.
