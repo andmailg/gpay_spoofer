@@ -1,6 +1,6 @@
 id=GPay-Spoofer
-name=GPay region Spoof (SIM: Russia → Latvia)
-version=1.0.1 (Improved)
-versionCode=2
+name=GPay region Spoof
+version=1.1.0 (Carrier Selection)
+versionCode=3
 author=vhvvx777 & ChatGPT
-description=Автоматическая подмена операторских данных на латвийские, если вставлена российская SIM-карта. Настройки спуфинга в config.txt.
+description=Автоматическая подмена данных оператора при российской SIM. Выбор оператора (Latvia/AT&T/T-Mobile) в Magisk Settings.

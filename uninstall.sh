@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# GPay-Spoofer — скрипт удаления (Улучшенный)
+# GPay-Spoofer — скрипт удаления (v3.0)
 
 MODULE_DIR=$(dirname "$0")
 LOGFILE="/sdcard/GPay-Spoofer.log"
