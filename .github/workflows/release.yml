@@ -30,30 +30,21 @@ jobs:
           ARCHIVE_NAME: gpay-spoofer-v${{ steps.version.outputs.version }}.zip
         run: |
           python3 << 'PYEOF'
-          import zipfile, os, shutil, glob
-          
-          tmpdir = 'gpay_module'
-          if os.path.exists(tmpdir):
-              shutil.rmtree(tmpdir)
-          os.makedirs(tmpdir)
-          
-          for item in glob.glob('*'):
-              if item not in ('.git', '.github'):
-                  src = os.path.join(tmpdir, item)
-                  if os.path.isdir(item):
-                      shutil.copytree(item, src)
-                  else:
-                      shutil.copy2(item, tmpdir)
+          import zipfile, os, glob
           
           archive = os.environ['ARCHIVE_NAME']
           with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
-              for root, dirs, files in os.walk(tmpdir):
-                  for f in files:
-                      filepath = os.path.join(root, f)
-                      arcname = os.path.relpath(filepath, tmpdir)
-                      z.write(filepath, arcname)
+              for item in glob.glob('*'):
+                  if item not in ('.git', '.github', archive) and not item.endswith('.zip'):
+                      if os.path.isdir(item):
+                          for root, dirs, files in os.walk(item):
+                              for f in files:
+                                  filepath = os.path.join(root, f)
+                                  arcname = os.path.relpath(filepath, '.')
+                                  z.write(filepath, arcname)
+                      else:
+                          z.write(item, item)
           
-          shutil.rmtree(tmpdir)
           print(f"Created: {archive}")
           PYEOF
           

@@ -11,7 +11,7 @@ ui_print "========================================"
 ui_print ""
 ui_print "Профиль 0: RU → Latvia (GPay)"
 ui_print "Профиль 1: RU → AT&T  (Звонки)"
-ui.print "Профиль 2: RU → T-Mobile (Общий)"
+ui_print "Профиль 2: RU → T-Mobile (Общий)"
 ui_print ""
 ui_print "Громкость ВВЕРХ / ВНИЗ — переключить"
 ui_print "Кнопка питания — подтвердить"
@@ -52,9 +52,6 @@ else
     ui_print ""
 
     # Читаем события через dd (структура input_event = 64 байта)
-    # Структура: time_sec(8) + time_usec(8) + type(8) + code(8) + value(16)
-    # type: байт 16-19 → hex позиция 32 (8 символов)
-    # code: байт 20-23 → hex позиция 40 (8 символов)
     while true; do
         EVENT=$(dd if="$EVENT_FILE" bs=64 count=1 2>/dev/null | od -A n -t x1 | tr -d ' \n')
 
