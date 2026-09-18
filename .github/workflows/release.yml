@@ -26,14 +26,39 @@ jobs:
 
       - name: Create ZIP archive
         id: zip
+        env:
+          ARCHIVE_NAME: gpay-spoofer-v${{ steps.version.outputs.version }}.zip
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          ARCHIVE_NAME="gpay-spoofer-v${VERSION}.zip"
-          # Удаляем ненужные файлы
-          rm -rf .git .github
-          # Архивируем всё что осталось
-          zip -r "${ARCHIVE_NAME}" .
+          python3 << 'PYEOF'
+          import zipfile, os, shutil, glob
+          
+          tmpdir = 'gpay_module'
+          if os.path.exists(tmpdir):
+              shutil.rmtree(tmpdir)
+          os.makedirs(tmpdir)
+          
+          for item in glob.glob('*'):
+              if item not in ('.git', '.github'):
+                  src = os.path.join(tmpdir, item)
+                  if os.path.isdir(item):
+                      shutil.copytree(item, src)
+                  else:
+                      shutil.copy2(item, tmpdir)
+          
+          archive = os.environ['ARCHIVE_NAME']
+          with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
+              for root, dirs, files in os.walk(tmpdir):
+                  for f in files:
+                      filepath = os.path.join(root, f)
+                      arcname = os.path.relpath(filepath, tmpdir)
+                      z.write(filepath, arcname)
+          
+          shutil.rmtree(tmpdir)
+          print(f"Created: {archive}")
+          PYEOF
+          
           ls -lh "${ARCHIVE_NAME}"
+          echo "archive_name=${ARCHIVE_NAME}" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
