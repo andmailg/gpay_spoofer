@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from module.prop
+        id: version
+        run: |
+          VERSION=$(grep '^version=' module.prop | head -1 | cut -d'=' -f2 | sed 's/ .*//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Create ZIP archive
+        run: |
+          ARCHIVE_NAME="gpay-spoofer-v${{ steps.version.outputs.version }}.zip"
+          # Создаём временную директорию без .git
+          TMP_DIR=$(mktemp -d)
+          cp -r * "$TMP_DIR/" 2>/dev/null
+          cp .gitignore "$TMP_DIR/" 2>/dev/null || true
+          rm -rf "$TMP_DIR/.git"
+          # Архивируем
+          cd "$TMP_DIR"
+          zip -r "../$ARCHIVE_NAME" . -x "*.git*"
+          cd -
+          echo "archive_name=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
+          echo "Created: $ARCHIVE_NAME"
+          ls -lh "../$ARCHIVE_NAME"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "GPay-Spoofer v${{ steps.version.outputs.version }}"
+          tag_name: "v${{ steps.version.outputs.version }}"
+          files: "gpay-spoofer-v${{ steps.version.outputs.version }}.zip"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
