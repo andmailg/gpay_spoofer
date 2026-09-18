@@ -2,7 +2,7 @@
 # Автоспуфер оператора: Россия → Выбранный оператор
 
 MODDIR="${0%/*}"
-LOGFILE="$MODDIR/Gpay-Spoofer.log"
+LOGFILE="/data/adb/Gpay-Spoofer.log"
 CONFIG="$MODDIR/config.txt"
 SETTINGS="$MODDIR/settings"
 OLD_PROPS_FILE="$MODDIR/old_props.txt"
@@ -16,7 +16,7 @@ i=0
 while [ -z "$(getprop gsm.sim.operator.iso-country)" ] && [ $i -lt 15 ]; do
     sleep 2
     i=$((i + 1))
-done
+fi
 
 sleep 3
 
@@ -66,8 +66,8 @@ case "$SELECTED_CARRIER" in
 esac
 
 sim_country=$(getprop gsm.sim.operator.iso-country)
-clean_sim_country=$(echo "$sim_country" | tr -d ' ,[:upper:]' | tr '[:upper:]' '[:lower:]')
-# Приводим SOURCE_ISO к нижнему регистру для надежности
+# Исправлено: безопасное приведение к нижнему регистру без некорректного tr -d
+clean_sim_country=$(echo "$sim_country" | tr '[:upper:]' '[:lower:]' | tr -d ' ,')
 SOURCE_ISO_LC=$(echo "$SOURCE_ISO" | tr '[:upper:]' '[:lower:]')
 
 echo "[$(date)] Статус SIM: '$sim_country'" >> "$LOGFILE"
