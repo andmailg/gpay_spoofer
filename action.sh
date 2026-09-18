@@ -1,154 +1,52 @@
 #!/system/bin/sh
-# action.sh — Выбор профиля через кнопки громкости и питания
-# POSIX-совместимый: без read -t, без массивов, без Bash-синтаксиса
-# Таймаут через watchdog-процесс, чтение в главном процессе (FIFO)
 
-MODDIR="${1:-${0%/*}}"
+# ============================================================
+# GPay Spoofer — action.sh
+# Вызывается пользователем через действие модуля в Magisk App.
+# Циклически переключает профиль оператора.
+# ============================================================
+
+MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
-TMP_SETTINGS="$MODDIR/settings.tmp.$$"
-TMP_PROFILE="$MODDIR/.tmp_profile.$$"
-FIFO="$MODDIR/.event_fifo.$$"
-LOCKFILE="$MODDIR/.action.lock"
+LOGDIR="/data/adb"
+LOGFILE="$LOGDIR/gpay-spoofer.log"
 
-# --- Блокировка: не запускать дважды ---
-if [ -e "$LOCKFILE" ]; then
-    for _lock in 1 2 3 4 5; do
-        if [ ! -e "$LOCKFILE" ]; then break; fi
-        sleep 1
-    done
-    if [ -e "$LOCKFILE" ]; then
-        ui_print "⚠️ Другой экземпляр action.sh уже запущен."
-        exit 1
-    fi
-fi
-touch "$LOCKFILE"
+mkdir -p "$LOGDIR"
 
-# --- Trap: очистка при любом выходе ---
-cleanup() {
-    # Убиваем getevent
-    if [ -n "$GETEVENT_PID" ] && [ -d "/proc/$GETEVENT_PID" ]; then
-        kill "$GETEVENT_PID" 2>/dev/null
-        wait "$GETEVENT_PID" 2>/dev/null
-    fi
-    # Убиваем watchdog
-    if [ -n "$WATCHDOG_PID" ] && [ -d "/proc/$WATCHDOG_PID" ]; then
-        kill "$WATCHDOG_PID" 2>/dev/null
-        wait "$WATCHDOG_PID" 2>/dev/null
-    fi
-    rm -f "$FIFO" "$TMP_PROFILE" "$LOCKFILE"
-}
-trap cleanup EXIT INT TERM HUP
+# --- Читаем текущий профиль ---
+CURRENT="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
 
-ui_print "========================================"
-ui_print "  GPay-Spoofer — Выбор профиля"
-ui_print "========================================"
-ui_print ""
-ui_print "Профиль 0: RU → Latvia (GPay)"
-ui_print "Профиль 1: RU → AT&T  (Звонки)"
-ui_print "Профиль 2: RU → T-Mobile (Общий)"
-ui_print ""
-ui_print "Громкость ВВЕРХ / ВНИЗ — переключить"
-ui_print "Кнопка питания — подтвердить"
-ui_print ""
-
-# --- Чтение текущего профиля с валидацией ---
-CURRENT=""
-if [ -r "$SETTINGS" ]; then
-    CURRENT=$(grep "^selected_carrier=" "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | tr -d '[:space:]')
-fi
 case "$CURRENT" in
-    0|1|2) ;;
+    0|1|2|3) ;;
     *) CURRENT=0 ;;
 esac
-PROFILE=$CURRENT
 
-ui_print "Текущий: Профиль $PROFILE"
-ui_print ""
+NEXT=$(( (CURRENT + 1) % 4 ))
 
-# --- Создание FIFO ---
-rm -f "$FIFO"
-mkfifo "$FIFO" 2>/dev/null
-if [ ! -p "$FIFO" ]; then
-    ui_print "⚠️ Не удалось создать FIFO, используем профиль по умолчанию"
-    PROFILE=0
-else
-    # --- Запуск getevent -ql в фоне (stdin из /dev/null) ---
-    getevent -ql < /dev/null > "$FIFO" 2>/dev/null &
-    GETEVENT_PID=$!
-
-    # --- Watchdog: через 30 сек закроет FIFO ---
-    (
-        sleep 30
-        # Пишем маркер таймаута в FIFO, чтобы read вернулся
-        echo "__TIMEOUT__" >> "$FIFO" 2>/dev/null
-    ) &
-    WATCHDOG_PID=$!
-
-    # Временный файл для передачи результата из цикла
-    echo "$PROFILE" > "$TMP_PROFILE"
-
-    ui_print "Устройство: все input-устройства"
-    ui_print "Ожидание нажатий (30 сек таймаут)..."
-    ui_print ""
-
-    # --- Чтение событий в ГЛАВНОМ процессе (не subshell!) ---
-    # read без -t: блокируется до события или EOF.
-    # Watchdog пишет __TIMEOUT__ в FIFO → read возвращает строку → проверяем → выходим.
-    while IFS= read -r line; do
-        case "$line" in
-            __TIMEOUT__)
-                ui_print "⏱ Время истекло. Сохранён профиль $PROFILE"
-                echo "$PROFILE" > "$TMP_PROFILE"
-                break
-                ;;
-            *KEY_VOLUMEUP*DOWN*)
-                PROFILE=$(( (PROFILE + 1) % 3 ))
-                ui_print "  → Профиль $PROFILE"
-                echo "$PROFILE" > "$TMP_PROFILE"
-                ;;
-            *KEY_VOLUMEDOWN*DOWN*)
-                PROFILE=$(( (PROFILE - 1 + 3) % 3 ))
-                ui_print "  → Профиль $PROFILE"
-                echo "$PROFILE" > "$TMP_PROFILE"
-                ;;
-            *KEY_POWER*DOWN*)
-                ui_print ""
-                ui_print "✅ Профиль $PROFILE подтверждён"
-                echo "$PROFILE" > "$TMP_PROFILE"
-                break
-                ;;
-        esac
-    done < "$FIFO"
-fi
-
-# --- Чтение результата из tmp-файла ---
-if [ -f "$TMP_PROFILE" ]; then
-    PROFILE=$(cat "$TMP_PROFILE")
-    rm -f "$TMP_PROFILE"
-fi
-
-# Валидация итогового профиля
-case "$PROFILE" in
-    0|1|2) ;;
-    *) PROFILE=0 ;;
+case "$NEXT" in
+    0) NAME="Beeline (RU)" ;;
+    1) NAME="Latvijas Mobilais (Latvia)" ;;
+    2) NAME="AT&T (USA)" ;;
+    3) NAME="T-Mobile (USA)" ;;
 esac
 
-# --- Атомарная запись settings ---
-printf 'selected_carrier=%s\n' "$PROFILE" > "$TMP_SETTINGS"
-chmod 0600 "$TMP_SETTINGS"
-mv -f "$TMP_SETTINGS" "$SETTINGS"
+# --- Записываем новый профиль ---
+TMPFILE="$SETTINGS.tmp.$$"
+printf 'selected_carrier=%s\n' "$NEXT" > "$TMPFILE"
+chmod 0600 "$TMPFILE"
+mv -f "$TMPFILE" "$SETTINGS"
+chmod 0600 "$SETTINGS"
 
-case "$PROFILE" in
-    0) NAME="Latvijas Mobilais (Latvia)" ;;
-    1) NAME="AT&T (USA)" ;;
-    2) NAME="T-Mobile (USA)" ;;
-    *) PROFILE=0; NAME="Latvijas Mobilais (Latvia)" ;;
-esac
+# --- Логируем ---
+{
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Profile changed: $NEXT — $NAME"
+    echo "Real SIM ISO: $(getprop gsm.sim.operator.iso-country 2>/dev/null)"
+    echo "Real SIM numeric: $(getprop gsm.sim.operator.numeric 2>/dev/null)"
+    echo "Real operator ISO: $(getprop gsm.operator.iso-country 2>/dev/null)"
+    echo "Real operator numeric: $(getprop gsm.operator.numeric 2>/dev/null)"
+} >> "$LOGFILE"
 
-ui_print ""
-ui_print "========================================"
-ui_print "  Профиль: $PROFILE"
-ui_print "  Оператор: $NAME"
-ui_print "========================================"
-ui_print ""
-ui_print "Готово!"
+chmod 0600 "$LOGFILE"
+
+echo "Selected profile: $NEXT — $NAME"
+echo "Перезапустите service.sh или перезагрузите устройство для применения."
