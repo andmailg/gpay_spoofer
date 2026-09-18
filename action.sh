@@ -1,7 +1,8 @@
 #!/system/bin/sh
 # action.sh — Надежный выбор профиля через кнопки громкости и питания
 
-MODDIR="${0%/*}"
+# Если передан аргумент из install.sh, используем его, иначе определяем сами
+MODDIR="${1:-${0%/*}}"
 SETTINGS="$MODDIR/settings"
 [ ! -d "$MODDIR" ] && mkdir -p "$MODDIR"
 
@@ -53,63 +54,53 @@ else
     ui_print "Ожидание нажатий (30 сек таймаут)..."
     ui_print ""
 
-    # Считываем события кнопок интерактивно в текущей сессии
+    # Сохраняем текущий профиль во временный файл на случай таймаута
+    echo "$PROFILE" > "$MODDIR/.tmp_profile"
+
     start_time=$(date +%s)
     
-    # Используем timeout для принудительного завершения getevent через 30 секунд
-    # (если в системе нет coreutils timeout, задействуем альтернативный цикл опроса)
-    if command -v timeout >/dev/null 2>&1; then
-        timeout 30 getevent -lt "$EVENT_FILE" 2>/dev/null | while read -r line; do
-            case "$line" in
-                *KEY_VOLUMEUP*DOWN*)
-                    PROFILE=$(( (PROFILE + 1) % 3 ))
-                    ui_print "  → Профиль $PROFILE"
-                    ;;
-                *KEY_VOLUMEDOWN*DOWN*)
-                    PROFILE=$(( (PROFILE - 1 + 3) % 3 ))
-                    ui_print "  → Профиль $PROFILE"
-                    ;;
-                *KEY_POWER*DOWN*)
-                    ui_print ""
-                    ui_print "✅ Профиль $PROFILE подтверждён"
-                    echo "$PROFILE" > "$MODDIR/.tmp_profile"
-                    break
-                    ;;
-            esac
-        done
-    else
-        # Запасной вариант под стандартный busybox ash
-        getevent -lt "$EVENT_FILE" 2>/dev/null | while read -r line; do
-            case "$line" in
-                *KEY_VOLUMEUP*DOWN*)
-                    PROFILE=$(( (PROFILE + 1) % 3 ))
-                    ui_print "  → Профиль $PROFILE"
-                    ;;
-                *KEY_VOLUMEDOWN*DOWN*)
-                    PROFILE=$(( (PROFILE - 1 + 3) % 3 ))
-                    ui_print "  → Профиль $PROFILE"
-                    ;;
-                *KEY_POWER*DOWN*)
-                    ui_print ""
-                    ui_print "✅ Профиль $PROFILE подтверждён"
-                    echo "$PROFILE" > "$MODDIR/.tmp_profile"
-                    break
-                    ;;
-            esac
-            current_time=$(date +%s)
-            if [ $((current_time - start_time)) -gt 30 ]; then
+    # Читаем события через cat/getevent в цикле с дескриптором, чтобы избежать сабшеллов
+    # Или используем простой обход с чтением в файл внутри цикла
+    getevent -lt "$EVENT_FILE" 2>/dev/null | while read -r line; do
+        # Читаем актуальный профиль из файла, если он менялся
+        if [ -f "$MODDIR/.tmp_profile" ]; then
+            PROFILE=$(cat "$MODDIR/.tmp_profile")
+        fi
+
+        case "$line" in
+            *KEY_VOLUMEUP*DOWN*)
+                PROFILE=$(( (PROFILE + 1) % 3 ))
+                ui_print "  → Профиль $PROFILE"
+                echo "$PROFILE" > "$MODDIR/.tmp_profile"
+                ;;
+            *KEY_VOLUMEDOWN*DOWN*)
+                PROFILE=$(( (PROFILE - 1 + 3) % 3 ))
+                ui_print "  → Профиль $PROFILE"
+                echo "$PROFILE" > "$MODDIR/.tmp_profile"
+                ;;
+            *KEY_POWER*DOWN*)
+                ui_print ""
+                ui_print "✅ Профиль $PROFILE подтверждён"
+                echo "$PROFILE" > "$MODDIR/.tmp_profile"
                 break
-            fi
-        done
-    fi
-    
+                ;;
+        esac
+
+        current_time=$(date +%s)
+        if [ $((current_time - start_time)) -gt 30 ]; then
+            ui_print ""
+            ui_print "⏱ Время истекло. Сохранен профиль $PROFILE"
+            break
+        fi
+    done
+
     if [ -f "$MODDIR/.tmp_profile" ]; then
         PROFILE=$(cat "$MODDIR/.tmp_profile")
         rm -f "$MODDIR/.tmp_profile"
     fi
 fi
 
-# Запись профиля
+# Запись профиля в финальный settings
 case "$PROFILE" in
     0) NAME="Latvijas Mobilais (Latvia)" ;;
     1) NAME="AT&T (USA)" ;;

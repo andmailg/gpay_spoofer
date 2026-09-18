@@ -16,9 +16,11 @@ if [ -f "$MODPATH/action.sh" ]; then
     ui_print "Запуск интерактивного выбора профиля..."
     ui_print "Используйте Громкость ВВЕРХ/ВНИЗ и Питание"
     ui_print ""
-    sh "$MODPATH/action.sh"
+    # Передаем целевой путь MODDIR первым аргументом в action.sh
+    sh "$MODPATH/action.sh" "$MODDIR"
 fi
 
+# Если по какой-то причине файл settings не создался, создаем дефолтный
 if [ ! -f "$SETTINGS" ] || ! grep -q "selected_carrier=" "$SETTINGS"; then
     echo "selected_carrier=0" > "$SETTINGS"
 fi
