@@ -11,7 +11,14 @@ until [ "$(getprop sys.boot_completed)" = "1" ]; do
     sleep 2
 done
 
-sleep 5
+# Ждем инициализацию свойств SIM-карты (но не более 30 секунд)
+i=0
+while [ -z "$(getprop gsm.sim.operator.iso-country)" ] && [ $i -lt 15 ]; do
+    sleep 2
+    i=$((i + 1))
+done
+
+sleep 3
 
 echo "--------------------------------------" >> "$LOGFILE"
 echo "[$(date)] 🚀 GPay-Spoofer запущен" >> "$LOGFILE"

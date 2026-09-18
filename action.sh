@@ -1,7 +1,6 @@
 #!/system/bin/sh
 # action.sh — Надежный выбор профиля через кнопки громкости и питания
 
-# Если передан аргумент из install.sh, используем его, иначе определяем сами
 MODDIR="${1:-${0%/*}}"
 SETTINGS="$MODDIR/settings"
 [ ! -d "$MODDIR" ] && mkdir -p "$MODDIR"
@@ -54,15 +53,16 @@ else
     ui_print "Ожидание нажатий (30 сек таймаут)..."
     ui_print ""
 
-    # Сохраняем текущий профиль во временный файл на случай таймаута
     echo "$PROFILE" > "$MODDIR/.tmp_profile"
+    
+    # Запускаем getevent в фоне, чтобы избежать блокировок и проблем с сабшеллом пайпа
+    getevent -lt "$EVENT_FILE" > "$MODDIR/.events" 2>/dev/null &
+    EVENT_PID=$!
 
     start_time=$(date +%s)
     
-    # Читаем события через cat/getevent в цикле с дескриптором, чтобы избежать сабшеллов
-    # Или используем простой обход с чтением в файл внутри цикла
-    getevent -lt "$EVENT_FILE" 2>/dev/null | while read -r line; do
-        # Читаем актуальный профиль из файла, если он менялся
+    # Читаем лог событий построчно из файла
+    tail -f "$MODDIR/.events" 2>/dev/null | while read -r line; do
         if [ -f "$MODDIR/.tmp_profile" ]; then
             PROFILE=$(cat "$MODDIR/.tmp_profile")
         fi
@@ -92,7 +92,14 @@ else
             ui_print "⏱ Время истекло. Сохранен профиль $PROFILE"
             break
         fi
+
+        # Прерываем цикл, если процесс getevent по какой-то причине завершился
+        [ ! -d "/proc/$EVENT_PID" ] && break
     done
+
+    # Завершаем фоновые процессы
+    kill $EVENT_PID 2>/dev/null
+    rm -f "$MODDIR/.events"
 
     if [ -f "$MODDIR/.tmp_profile" ]; then
         PROFILE=$(cat "$MODDIR/.tmp_profile")
