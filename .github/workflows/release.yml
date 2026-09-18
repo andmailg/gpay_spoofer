@@ -29,12 +29,11 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           ARCHIVE_NAME="gpay-spoofer-v${VERSION}.zip"
-          TMP_DIR=$(mktemp -d)
-          cp -r * "$TMP_DIR/" 2>/dev/null
-          rm -rf "$TMP_DIR/.git"
-          (cd "$TMP_DIR" && zip -r "/github/workspace/${ARCHIVE_NAME}" .)
-          echo "archive_name=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
-          ls -lh "/github/workspace/${ARCHIVE_NAME}"
+          # Удаляем ненужные файлы
+          rm -rf .git .github
+          # Архивируем всё что осталось
+          zip -r "${ARCHIVE_NAME}" .
+          ls -lh "${ARCHIVE_NAME}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
