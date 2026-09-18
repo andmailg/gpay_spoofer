@@ -1,50 +1,62 @@
 #!/system/bin/sh
-# GPay-Spoofer — скрипт удаления (v3.0)
+# GPay-Spoofer — скрипт удаления
 
 MODULE_DIR=$(dirname "$0")
-LOGFILE="/sdcard/GPay-Spoofer.log"
+LOGFILE="/data/adb/Gpay-Spoofer.log"
 OLD_PROPS_FILE="$MODULE_DIR/old_props.txt"
-PROPS=(
-    "gsm.sim.operator.alpha"
-    "gsm.operator.alpha"
-    "gsm.sim.operator.numeric"
-    "gsm.operator.numeric"
-    "gsm.sim.operator.iso-country"
-    "gsm.operator.iso-country"
-    "ro.cdma.home.operator.numeric"
-)
 
-echo "[`date`] 🔄 Удаление GPay-Spoofer..." >> $LOGFILE
+echo "[`date`] 🔄 Удаление GPay-Spoofer..." >> "$LOGFILE"
 
-# 1. Считываем сохраненные старые значения, если они есть
+PROP1="gsm.sim.operator.alpha"
+PROP2="gsm.operator.alpha"
+PROP3="gsm.sim.operator.numeric"
+PROP4="gsm.operator.numeric"
+PROP5="gsm.sim.operator.iso-country"
+PROP6="gsm.operator.iso-country"
+PROP7="ro.cdma.home.operator.numeric"
+
 if [ -f "$OLD_PROPS_FILE" ]; then
-    echo "[`date`] ♻️ Восстановление оригинальных параметров..." >> $LOGFILE
+    echo "[`date`] ♻️ Восстановление оригинальных параметров..." >> "$LOGFILE"
     
-    i=0
-    while IFS= read -r old_value; do
-        prop_name="${PROPS[$i]}"
-        if [ -n "$old_value" ]; then
-            # Восстанавливаем сохраненное значение
-            resetprop "$prop_name" "$old_value"
-            echo "[`date`] Восстановлен: $prop_name = '$old_value'" >> $LOGFILE
+    {
+        read -r val1
+        read -r val2
+        read -r val3
+        read -r val4
+        read -r val5
+        read -r val6
+        read -r val7
+    } < "$OLD_PROPS_FILE"
+
+    for prop in "$PROP1" "$PROP2" "$PROP3" "$PROP4" "$PROP5" "$PROP6" "$PROP7"; do
+        case "$prop" in
+            "$PROP1") val="$val1" ;;
+            "$PROP2") val="$val2" ;;
+            "$PROP3") val="$val3" ;;
+            "$PROP4") val="$val4" ;;
+            "$PROP5") val="$val5" ;;
+            "$PROP6") val="$val6" ;;
+            "$PROP7") val="$val7" ;;
+        esac
+
+        if [ -n "$val" ]; then
+            resetprop "$prop" "$val"
+            echo "[`date`] Восстановлен: $prop = '$val'" >> "$LOGFILE"
         else
-            # Если старое значение было пустым, удаляем свойство
-            resetprop --delete "$prop_name"
-            echo "[`date`] Удален: $prop_name (ранее пуст)" >> $LOGFILE
+            resetprop --delete "$prop"
+            echo "[`date`] Удален: $prop" >> "$LOGFILE"
         fi
-        i=$((i+1))
-    done < "$OLD_PROPS_FILE"
+    done
     
     rm "$OLD_PROPS_FILE"
-    echo "[`date`] ✅ Параметры успешно восстановлены/сброшены." >> $LOGFILE
-
+    echo "[`date`] ✅ Параметры успешно восстановлены." >> "$LOGFILE"
 else
-    echo "[`date`] ⚠️ Файл старых параметров не найден. Выполняется чистое удаление..." >> $LOGFILE
-    # Если старых значений нет, просто удаляем все свойства
-    for prop in "${PROPS[@]}"; do
+    echo "[`date`] ⚠️ Файл старых параметров не найден. Очистка свойств..." >> "$LOGFILE"
+    for prop in "$PROP1" "$PROP2" "$PROP3" "$PROP4" "$PROP5" "$PROP6" "$PROP7"; do
         resetprop --delete "$prop"
     done
-    echo "[`date`] ✅ Параметры spoof удалены." >> $LOGFILE
+    echo "[`date`] ✅ Свойства сброшены." >> "$LOGFILE"
 fi
 
-echo "[`date`] 🛑 Удаление GPay-Spoofer завершено." >> $LOGFILE
+echo "[`date`] 🛑 Удаление GPay-Spoofer завершено." >> "$LOGFILE"
+cp "$LOGFILE" /sdcard/Gpay-Spoofer.log 2>/dev/null

@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# action.sh — Выбор профиля по нажатию кнопки Action в Magisk
+# action.sh — Выбор профиля через кнопки громкости и питания
 
 MODDIR="/data/adb/modules/GPay-Spoofer"
 SETTINGS="$MODDIR/settings"
@@ -8,9 +8,9 @@ ui_print "========================================"
 ui_print "  GPay-Spoofer — Выбор профиля"
 ui_print "========================================"
 ui_print ""
-ui_print "Профиль 0: Latvijas Mobilais (Latvia)"
-ui_print "Профиль 1: AT&T (USA)"
-ui_print "Профиль 2: T-Mobile (USA)"
+ui_print "Профиль 0: RU → Latvia (GPay)"
+ui_print "Профиль 1: RU → AT&T  (Звонки)"
+ui_print "Профиль 2: RU → T-Mobile (Общий)"
 ui_print ""
 ui_print "Громкость ВВЕРХ / ВНИЗ — переключить"
 ui_print "Кнопка питания — подтвердить"
@@ -24,7 +24,7 @@ PROFILE=$CURRENT
 ui_print "Текущий: Профиль $PROFILE"
 ui_print ""
 
-# === Поиск устройства ввода через getevent ===
+# === Ищем устройство ввода через getevent ===
 EVENT_FILE=""
 if command -v getevent >/dev/null 2>&1; then
     EVENT_FILE=$(getevent -p 2>/dev/null | grep -B1 "key 0074" | grep "/dev/input" | head -1 | awk '{print $1}')
@@ -81,17 +81,14 @@ else
     done
 fi
 
-# === Сохранение выбранного профиля ===
+# === Запись профиля ===
 case "$PROFILE" in
     0) NAME="Latvijas Mobilais (Latvia)" ;;
     1) NAME="AT&T (USA)" ;;
     2) NAME="T-Mobile (USA)" ;;
 esac
 
-cat > "$SETTINGS" <<EOF
-[Выбор оператора]
-selected_carrier=$PROFILE
-EOF
+echo "selected_carrier=$PROFILE" > "$SETTINGS"
 
 ui_print ""
 ui_print "========================================"
