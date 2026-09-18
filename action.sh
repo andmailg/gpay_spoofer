@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # action.sh — Выбор профиля через кнопки громкости и питания
-# Исправления: getevent -ql, FIFO для чтения в главном процессе (не subshell),
-#              таймаут 30с, атомарная запись, валидация, trap cleanup
+# POSIX-совместимый: без read -t, без массивов, без Bash-синтаксиса
+# Таймаут через watchdog-процесс, чтение в главном процессе (FIFO)
 
 MODDIR="${1:-${0%/*}}"
 SETTINGS="$MODDIR/settings"
@@ -25,9 +25,15 @@ touch "$LOCKFILE"
 
 # --- Trap: очистка при любом выходе ---
 cleanup() {
+    # Убиваем getevent
     if [ -n "$GETEVENT_PID" ] && [ -d "/proc/$GETEVENT_PID" ]; then
         kill "$GETEVENT_PID" 2>/dev/null
         wait "$GETEVENT_PID" 2>/dev/null
+    fi
+    # Убиваем watchdog
+    if [ -n "$WATCHDOG_PID" ] && [ -d "/proc/$WATCHDOG_PID" ]; then
+        kill "$WATCHDOG_PID" 2>/dev/null
+        wait "$WATCHDOG_PID" 2>/dev/null
     fi
     rm -f "$FIFO" "$TMP_PROFILE" "$LOCKFILE"
 }
@@ -70,27 +76,31 @@ else
     getevent -ql < /dev/null > "$FIFO" 2>/dev/null &
     GETEVENT_PID=$!
 
+    # --- Watchdog: через 30 сек закроет FIFO ---
+    (
+        sleep 30
+        # Пишем маркер таймаута в FIFO, чтобы read вернулся
+        echo "__TIMEOUT__" >> "$FIFO" 2>/dev/null
+    ) &
+    WATCHDOG_PID=$!
+
     # Временный файл для передачи результата из цикла
     echo "$PROFILE" > "$TMP_PROFILE"
-
-    start_time=$(date +%s)
 
     ui_print "Устройство: все input-устройства"
     ui_print "Ожидание нажатий (30 сек таймаут)..."
     ui_print ""
 
     # --- Чтение событий в ГЛАВНОМ процессе (не subshell!) ---
-    # read -t 1 таймаут 1 сек на строку. При отсутствии событий while
-    # завершается через ~30 итераций (30 сек).
-    while IFS= read -r line -t 1; do
-        current_time=$(date +%s)
-        if [ $((current_time - start_time)) -ge 30 ]; then
-            ui_print "⏱ Время истекло. Сохранён профиль $PROFILE"
-            echo "$PROFILE" > "$TMP_PROFILE"
-            break
-        fi
-
+    # read без -t: блокируется до события или EOF.
+    # Watchdog пишет __TIMEOUT__ в FIFO → read возвращает строку → проверяем → выходим.
+    while IFS= read -r line; do
         case "$line" in
+            __TIMEOUT__)
+                ui_print "⏱ Время истекло. Сохранён профиль $PROFILE"
+                echo "$PROFILE" > "$TMP_PROFILE"
+                break
+                ;;
             *KEY_VOLUMEUP*DOWN*)
                 PROFILE=$(( (PROFILE + 1) % 3 ))
                 ui_print "  → Профиль $PROFILE"

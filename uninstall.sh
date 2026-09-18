@@ -1,10 +1,10 @@
 #!/system/bin/sh
 # uninstall.sh — Удаление модуля и восстановление свойств
-# Исправления: safe loading (sed вместо . "$FILE"), lock, trap
+# POSIX-совместимый: без массивов, safe loading через sed
 
-MODULE_DIR="${0%/*}"
+MODDIR="${0%/*}"
 LOGFILE="/data/adb/Gpay-Spoofer.log"
-OLD_PROPS_FILE="$MODULE_DIR/old_props.dat"
+OLD_PROPS_FILE="$MODDIR/old_props.dat"
 LOCKFILE="/data/adb/gpay-spoofer-uninstall.lock"
 
 # --- Обеспечиваем /data/adb ---
@@ -30,17 +30,6 @@ touch "$LOCKFILE"
 
 log_msg "🔄 Удаление GPay-Spoofer..."
 
-# Список свойств
-PROPS=(
-    "gsm.sim.operator.alpha"
-    "gsm.operator.alpha"
-    "gsm.sim.operator.numeric"
-    "gsm.sim.operator.numeric"
-    "gsm.sim.operator.iso-country"
-    "gsm.operator.iso-country"
-    "ro.cdma.home.operator.numeric"
-)
-
 # --- Безопасное восстановление из key=value файла ---
 if [ -r "$OLD_PROPS_FILE" ]; then
     log_msg "♻️ Восстановление оригинальных параметров..."
@@ -58,62 +47,26 @@ if [ -r "$OLD_PROPS_FILE" ]; then
     ORIG_ISO_OP=$(get_val "gsm.operator.iso-country")
     ORIG_CDMA=$(get_val "ro.cdma.home.operator.numeric")
 
-    # Применяем сохранённые значения или удаляем
-    if [ -n "$ORIG_ALPHA_SIM" ]; then
-        resetprop gsm.sim.operator.alpha "$ORIG_ALPHA_SIM"
-        log_msg "  Восстановлен: gsm.sim.operator.alpha = '$ORIG_ALPHA_SIM'"
-    else
-        resetprop --delete gsm.sim.operator.alpha
-        log_msg "  Удалён: gsm.sim.operator.alpha"
-    fi
+    # --- Восстановление каждого свойства ---
+    restore_prop() {
+        _prop="$1"
+        _val="$2"
+        if [ -n "$_val" ]; then
+            resetprop "$_prop" "$_val"
+            log_msg "  Восстановлен: $_prop = '$_val'"
+        else
+            resetprop --delete "$_prop"
+            log_msg "  Удалён: $_prop"
+        fi
+    }
 
-    if [ -n "$ORIG_ALPHA_OP" ]; then
-        resetprop gsm.operator.alpha "$ORIG_ALPHA_OP"
-        log_msg "  Восстановлен: gsm.operator.alpha = '$ORIG_ALPHA_OP'"
-    else
-        resetprop --delete gsm.operator.alpha
-        log_msg "  Удалён: gsm.operator.alpha"
-    fi
-
-    if [ -n "$ORIG_NUMERIC_SIM" ]; then
-        resetprop gsm.sim.operator.numeric "$ORIG_NUMERIC_SIM"
-        log_msg "  Восстановлен: gsm.sim.operator.numeric = '$ORIG_NUMERIC_SIM'"
-    else
-        resetprop --delete gsm.sim.operator.numeric
-        log_msg "  Удалён: gsm.sim.operator.numeric"
-    fi
-
-    if [ -n "$ORIG_NUMERIC_OP" ]; then
-        resetprop gsm.operator.numeric "$ORIG_NUMERIC_OP"
-        log_msg "  Восстановлен: gsm.operator.numeric = '$ORIG_NUMERIC_OP'"
-    else
-        resetprop --delete gsm.operator.numeric
-        log_msg "  Удалён: gsm.operator.numeric"
-    fi
-
-    if [ -n "$ORIG_ISO_SIM" ]; then
-        resetprop gsm.sim.operator.iso-country "$ORIG_ISO_SIM"
-        log_msg "  Восстановлен: gsm.sim.operator.iso-country = '$ORIG_ISO_SIM'"
-    else
-        resetprop --delete gsm.sim.operator.iso-country
-        log_msg "  Удалён: gsm.sim.operator.iso-country"
-    fi
-
-    if [ -n "$ORIG_ISO_OP" ]; then
-        resetprop gsm.operator.iso-country "$ORIG_ISO_OP"
-        log_msg "  Восстановлен: gsm.operator.iso-country = '$ORIG_ISO_OP'"
-    else
-        resetprop --delete gsm.operator.iso-country
-        log_msg "  Удалён: gsm.operator.iso-country"
-    fi
-
-    if [ -n "$ORIG_CDMA" ]; then
-        resetprop ro.cdma.home.operator.numeric "$ORIG_CDMA"
-        log_msg "  Восстановлен: ro.cdma.home.operator.numeric = '$ORIG_CDMA'"
-    else
-        resetprop --delete ro.cdma.home.operator.numeric
-        log_msg "  Удалён: ro.cdma.home.operator.numeric"
-    fi
+    restore_prop "gsm.sim.operator.alpha" "$ORIG_ALPHA_SIM"
+    restore_prop "gsm.operator.alpha" "$ORIG_ALPHA_OP"
+    restore_prop "gsm.sim.operator.numeric" "$ORIG_NUMERIC_SIM"
+    restore_prop "gsm.operator.numeric" "$ORIG_NUMERIC_OP"
+    restore_prop "gsm.sim.operator.iso-country" "$ORIG_ISO_SIM"
+    restore_prop "gsm.operator.iso-country" "$ORIG_ISO_OP"
+    restore_prop "ro.cdma.home.operator.numeric" "$ORIG_CDMA"
 
     rm -f "$OLD_PROPS_FILE"
     log_msg "✅ Параметры восстановлены."
@@ -134,7 +87,7 @@ else
 fi
 
 # Удаление маркера
-rm -f "$MODULE_DIR/.spoof_applied"
+rm -f "$MODDIR/.spoof_applied"
 
 log_msg "🛑 Удаление GPay-Spoofer завершено."
 
