@@ -25,27 +25,27 @@ jobs:
           echo "Extracted version: $VERSION"
 
       - name: Create ZIP archive
+        id: zip
         run: |
-          ARCHIVE_NAME="gpay-spoofer-v${{ steps.version.outputs.version }}.zip"
+          VERSION="${{ steps.version.outputs.version }}"
+          ARCHIVE_NAME="gpay-spoofer-v${VERSION}.zip"
           # Создаём временную директорию без .git
           TMP_DIR=$(mktemp -d)
           cp -r * "$TMP_DIR/" 2>/dev/null
           cp .gitignore "$TMP_DIR/" 2>/dev/null || true
           rm -rf "$TMP_DIR/.git"
-          # Архивируем
-          cd "$TMP_DIR"
-          zip -r "../$ARCHIVE_NAME" . -x "*.git*"
-          cd -
+          # Архивируем содержимое в текущий каталог (репозиторий)
+          (cd "$TMP_DIR" && zip -r "${ARCHIVE_NAME}" .)
           echo "archive_name=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
           echo "Created: $ARCHIVE_NAME"
-          ls -lh "../$ARCHIVE_NAME"
+          ls -lh "${ARCHIVE_NAME}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           name: "GPay-Spoofer v${{ steps.version.outputs.version }}"
           tag_name: "v${{ steps.version.outputs.version }}"
-          files: "gpay-spoofer-v${{ steps.version.outputs.version }}.zip"
+          files: "${{ steps.zip.outputs.archive_name }}"
           generate_release_notes: true
           draft: false
           prerelease: false
