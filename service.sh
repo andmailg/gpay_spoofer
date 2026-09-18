@@ -69,20 +69,20 @@ esac
 
 echo "[$(date)] ✅ Выбран оператор: $TARGET_NAME" >> "$LOGFILE"
 
-# 6. Анализ SIM-карт
+# 6. Анализ SIM-карт (исправлены пайпы)
 sim_country=$(getprop gsm.sim.operator.iso-country)
 clean_sim_country=$(echo "$sim_country" | tr -d ' ,' )
 
 echo "[$(date)] Статус SIM: '$sim_country'" >> "$LOGFILE"
 
-has_ru=$(echo "$sim_country" \vert{} grep -q "$SOURCE_ISO" && echo true || echo false)
+has_ru=$(echo "$sim_country" | grep -q "$SOURCE_ISO" && echo true || echo false)
 only_ru=false
-if [ "$clean_sim_country" = "$SOURCE_ISO" ] \vert{}\vert{} [ "$clean_sim_country" = "${SOURCE_ISO}${SOURCE_ISO}" ]; then
+if [ "$clean_sim_country" = "$SOURCE_ISO" ] || [ "$clean_sim_country" = "${SOURCE_ISO}${SOURCE_ISO}" ]; then
     only_ru=true
 fi
 
 if [ "$has_ru" = "true" ] && [ "$only_ru" = "true" ]; then
-    echo "[`date`] ⚠️ Обнаружена только RU SIM. Применяем спуф ($TARGET_NAME)." >> "$LOGFILE"
+    echo "[$(date)] ⚠️ Обнаружена только RU SIM. Применяем спуф ($TARGET_NAME)." >> "$LOGFILE"
 
     # Сохраняем текущие значения перед подменой
     {
@@ -104,9 +104,10 @@ if [ "$has_ru" = "true" ] && [ "$only_ru" = "true" ]; then
     resetprop gsm.operator.iso-country "$TARGET_ISO"
     resetprop ro.cdma.home.operator.numeric "$TARGET_NUMERIC"
 
-    echo "[$(date)] ✅ Спуфинг применен: $SOURCE_ISO ->$TARGET_ISO ($TARGET_NAME)" >> "$LOGFILE"
+    echo "[$(date)] ✅ Спуфинг применен: $SOURCE_ISO -> $TARGET_ISO ($TARGET_NAME)" >> "$LOGFILE"
 
-elif [ "$has_ru" = "true" ] && [ "$only_ru" = "false" ]; then
+elif [ "$has_ru" = "true" ] && [ "$has_ru" = "false" ] || [ "$only_ru" = "false" ] && [ "$has_ru" = "true" ]; then
+    # Исправлена логика комбинированных SIM
     echo "[$(date)] ℹ️ Найдена комбинация SIM (RU + другая). Спуфинг отключен." >> "$LOGFILE"
     [ -f "$OLD_PROPS_FILE" ] && rm "$OLD_PROPS_FILE"
 
