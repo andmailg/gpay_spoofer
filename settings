@@ -1,2 +1,2 @@
 [Выбор оператора]
-action=switch_carrier.sh
+selected_carrier=0

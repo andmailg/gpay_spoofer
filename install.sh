@@ -4,7 +4,7 @@
 MODDIR="/data/adb/modules/GPay-Spoofer"
 SETTINGS="$MODDIR/settings"
 
-# 1. Создаем директорию модуля, если она не существует
+# 1. Создаем директорию модуля
 mkdir -p "$MODDIR"
 
 ui_print "========================================"
@@ -12,25 +12,20 @@ ui_print "  GPay-Spoofer v1.2.0"
 ui_print "========================================"
 ui_print ""
 
-# 2. Если рядом есть скрипт выбора профиля, запускаем его прямо при установке
-if [ -f "$MODPATH/switch_carrier.sh" ] || [ -f "$(dirname "$0")/switch_carrier.sh" ]; then
-    SWITCH_SCRIPT="$(dirname "$0")/switch_carrier.sh"
-    if [ ! -f "$SWITCH_SCRIPT" ]; then
-        SWITCH_SCRIPT="$MODPATH/switch_carrier.sh"
-    fi
-    
-    if [ -f "$SWITCH_SCRIPT" ]; then
-        ui_print "Запуск интерактивного выбора профиля..."
-        ui_print "Используйте Громкость ВВЕРХ/ВНИЗ и Питание"
-        ui_print ""
-        sh "$SWITCH_SCRIPT"
-    fi
+# 2. Корректный запуск выбора профиля при установке
+# Во время установки скрипты распакованы в текущую директорию ($OUTFD / прошивальщик)
+INSTALL_DIR="$(dirname "$0")"
+
+if [ -f "$INSTALL_DIR/switch_carrier.sh" ]; then
+    ui_print "Запуск интерактивного выбора профиля..."
+    ui_print "Используйте Громкость ВВЕРХ/ВНИЗ и Питание"
+    ui_print ""
+    sh "$INSTALL_DIR/switch_carrier.sh"
 fi
 
-# 3. Если настройки еще не созданы интерактивно, ставим дефолт (Latvia)
-if [ ! -f "$SETTINGS" ]; then
+# 3. Если настройки не создались, ставим дефолт (Latvia)
+if [ ! -f "$SETTINGS" ] || ! grep -q "selected_carrier=" "$SETTINGS"; then
     cat > "$SETTINGS" <<EOF
-[Выбор оператора]
 selected_carrier=0
 EOF
 fi
