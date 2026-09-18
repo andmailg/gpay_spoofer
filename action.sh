@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # action.sh — Надежный выбор профиля через кнопки громкости и питания
 
-MODDIR="/data/adb/modules/GPay-Spoofer"
+MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
 [ ! -d "$MODDIR" ] && mkdir -p "$MODDIR"
 
@@ -53,37 +53,55 @@ else
     ui_print "Ожидание нажатий (30 сек таймаут)..."
     ui_print ""
 
+    # Считываем события кнопок интерактивно в текущей сессии
     start_time=$(date +%s)
     
-    getevent -lt "$EVENT_FILE" 2>/dev/null | while read -r line; do
-        case "$line" in
-            *KEY_VOLUMEUP*DOWN*)
-                PROFILE=$(( (PROFILE + 1) % 3 ))
-                ui_print "  → Профиль $PROFILE"
-                ;;
-            *KEY_VOLUMEDOWN*DOWN*)
-                PROFILE=$(( (PROFILE - 1 + 3) % 3 ))
-                ui_print "  → Профиль $PROFILE"
-                ;;
-            *KEY_POWER*DOWN*)
-                ui_print ""
-                ui_print "✅ Профиль $PROFILE подтверждён"
-                echo "$PROFILE" > "$MODDIR/.tmp_profile"
-                exit 0
-                ;;
-        esac
-        
-        current_time=$(date +%s)
-        if [ $((current_time - start_time)) -gt 30 ]; then
-            echo "$PROFILE" > "$MODDIR/.tmp_profile"
-            exit 0
-        fi
-    done &
-    
-    pid=$!
-    while [ -d "/proc/$pid" ]; do
-        sleep 0.5
-    done
+    # Используем timeout для принудительного завершения getevent через 30 секунд
+    # (если в системе нет coreutils timeout, задействуем альтернативный цикл опроса)
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 30 getevent -lt "$EVENT_FILE" 2>/dev/null | while read -r line; do
+            case "$line" in
+                *KEY_VOLUMEUP*DOWN*)
+                    PROFILE=$(( (PROFILE + 1) % 3 ))
+                    ui_print "  → Профиль $PROFILE"
+                    ;;
+                *KEY_VOLUMEDOWN*DOWN*)
+                    PROFILE=$(( (PROFILE - 1 + 3) % 3 ))
+                    ui_print "  → Профиль $PROFILE"
+                    ;;
+                *KEY_POWER*DOWN*)
+                    ui_print ""
+                    ui_print "✅ Профиль $PROFILE подтверждён"
+                    echo "$PROFILE" > "$MODDIR/.tmp_profile"
+                    break
+                    ;;
+            esac
+        done
+    else
+        # Запасной вариант под стандартный busybox ash
+        getevent -lt "$EVENT_FILE" 2>/dev/null | while read -r line; do
+            case "$line" in
+                *KEY_VOLUMEUP*DOWN*)
+                    PROFILE=$(( (PROFILE + 1) % 3 ))
+                    ui_print "  → Профиль $PROFILE"
+                    ;;
+                *KEY_VOLUMEDOWN*DOWN*)
+                    PROFILE=$(( (PROFILE - 1 + 3) % 3 ))
+                    ui_print "  → Профиль $PROFILE"
+                    ;;
+                *KEY_POWER*DOWN*)
+                    ui_print ""
+                    ui_print "✅ Профиль $PROFILE подтверждён"
+                    echo "$PROFILE" > "$MODDIR/.tmp_profile"
+                    break
+                    ;;
+            esac
+            current_time=$(date +%s)
+            if [ $((current_time - start_time)) -gt 30 ]; then
+                break
+            fi
+        done
+    fi
     
     if [ -f "$MODDIR/.tmp_profile" ]; then
         PROFILE=$(cat "$MODDIR/.tmp_profile")

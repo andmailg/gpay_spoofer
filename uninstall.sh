@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # GPay-Spoofer — скрипт удаления
 
-MODULE_DIR=$(dirname "$0")
+MODULE_DIR="${0%/*}"
 LOGFILE="/data/adb/Gpay-Spoofer.log"
 OLD_PROPS_FILE="$MODULE_DIR/old_props.txt"
 
@@ -18,26 +18,13 @@ PROP7="ro.cdma.home.operator.numeric"
 if [ -f "$OLD_PROPS_FILE" ]; then
     echo "[$(date)] ♻️ Восстановление оригинальных параметров..." >> "$LOGFILE"
     
-    {
-        read -r val1
-        read -r val2
-        read -r val3
-        read -r val4
-        read -r val5
-        read -r val6
-        read -r val7
-    } < "$OLD_PROPS_FILE"
+    # Безопасно загружаем сохраненные переменные
+    . "$OLD_PROPS_FILE"
 
+    set -- "$val1" "$val2" "$val3" "$val4" "$val5" "$val6" "$val7"
     for prop in "$PROP1" "$PROP2" "$PROP3" "$PROP4" "$PROP5" "$PROP6" "$PROP7"; do
-        case "$prop" in
-            "$PROP1") val="$val1" ;;
-            "$PROP2") val="$val2" ;;
-            "$PROP3") val="$val3" ;;
-            "$PROP4") val="$val4" ;;
-            "$PROP5") val="$val5" ;;
-            "$PROP6") val="$val6" ;;
-            "$PROP7") val="$val7" ;;
-        esac
+        val="$1"
+        shift
 
         if [ -n "$val" ]; then
             resetprop "$prop" "$val"
@@ -48,7 +35,7 @@ if [ -f "$OLD_PROPS_FILE" ]; then
         fi
     done
     
-    rm "$OLD_PROPS_FILE"
+    rm -f "$OLD_PROPS_FILE"
     echo "[$(date)] ✅ Параметры успешно восстановлены." >> "$LOGFILE"
 else
     echo "[$(date)] ⚠️ Файл старых параметров не найден. Очистка свойств..." >> "$LOGFILE"

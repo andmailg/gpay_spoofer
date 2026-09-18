@@ -1,8 +1,8 @@
 #!/system/bin/sh
 # Автоспуфер оператора: Россия → Выбранный оператор
 
+MODDIR="${0%/*}"
 LOGFILE="/data/adb/Gpay-Spoofer.log"
-MODDIR="/data/adb/modules/GPay-Spoofer"
 CONFIG="$MODDIR/config.txt"
 SETTINGS="$MODDIR/settings"
 OLD_PROPS_FILE="$MODDIR/old_props.txt"
@@ -76,14 +76,15 @@ fi
 if [ "$has_ru" = "true" ] && [ "$only_ru" = "true" ]; then
     echo "[$(date)] ⚠️ Обнаружена только RU SIM. Применяем спуф ($TARGET_NAME)." >> "$LOGFILE"
 
+    # Сохраняем свойства в формате переменная=значение для надежного восстановления
     {
-        getprop gsm.sim.operator.alpha
-        getprop gsm.operator.alpha
-        getprop gsm.sim.operator.numeric
-        getprop gsm.operator.numeric
-        getprop gsm.sim.operator.iso-country
-        getprop gsm.operator.iso-country
-        getprop ro.cdma.home.operator.numeric
+        echo "val1='$(getprop gsm.sim.operator.alpha)'"
+        echo "val2='$(getprop gsm.operator.alpha)'"
+        echo "val3='$(getprop gsm.sim.operator.numeric)'"
+        echo "val4='$(getprop gsm.operator.numeric)'"
+        echo "val5='$(getprop gsm.sim.operator.iso-country)'"
+        echo "val6='$(getprop gsm.operator.iso-country)'"
+        echo "val7='$(getprop ro.cdma.home.operator.numeric)'"
     } > "$OLD_PROPS_FILE"
 
     resetprop gsm.sim.operator.alpha "$TARGET_ALPHA"
