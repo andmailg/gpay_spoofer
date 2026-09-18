@@ -1,9 +1,37 @@
 #!/system/bin/sh
-# action.sh — Надежный выбор профиля через кнопки громкости и питания
+# action.sh — Выбор профиля через кнопки громкости и питания
+# Исправления: getevent -ql, FIFO для чтения в главном процессе (не subshell),
+#              таймаут 30с, атомарная запись, валидация, trap cleanup
 
 MODDIR="${1:-${0%/*}}"
 SETTINGS="$MODDIR/settings"
-[ ! -d "$MODDIR" ] && mkdir -p "$MODDIR"
+TMP_SETTINGS="$MODDIR/settings.tmp.$$"
+TMP_PROFILE="$MODDIR/.tmp_profile.$$"
+FIFO="$MODDIR/.event_fifo.$$"
+LOCKFILE="$MODDIR/.action.lock"
+
+# --- Блокировка: не запускать дважды ---
+if [ -e "$LOCKFILE" ]; then
+    for _lock in 1 2 3 4 5; do
+        if [ ! -e "$LOCKFILE" ]; then break; fi
+        sleep 1
+    done
+    if [ -e "$LOCKFILE" ]; then
+        ui_print "⚠️ Другой экземпляр action.sh уже запущен."
+        exit 1
+    fi
+fi
+touch "$LOCKFILE"
+
+# --- Trap: очистка при любом выходе ---
+cleanup() {
+    if [ -n "$GETEVENT_PID" ] && [ -d "/proc/$GETEVENT_PID" ]; then
+        kill "$GETEVENT_PID" 2>/dev/null
+        wait "$GETEVENT_PID" 2>/dev/null
+    fi
+    rm -f "$FIFO" "$TMP_PROFILE" "$LOCKFILE"
+}
+trap cleanup EXIT INT TERM HUP
 
 ui_print "========================================"
 ui_print "  GPay-Spoofer — Выбор профиля"
@@ -17,110 +45,95 @@ ui_print "Громкость ВВЕРХ / ВНИЗ — переключить"
 ui_print "Кнопка питания — подтвердить"
 ui_print ""
 
-# Текущий профиль
-CURRENT=$(grep "^selected_carrier=" "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | tr -d '[:space:]')
-CURRENT=${CURRENT:-0}
+# --- Чтение текущего профиля с валидацией ---
+CURRENT=""
+if [ -r "$SETTINGS" ]; then
+    CURRENT=$(grep "^selected_carrier=" "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | tr -d '[:space:]')
+fi
+case "$CURRENT" in
+    0|1|2) ;;
+    *) CURRENT=0 ;;
+esac
 PROFILE=$CURRENT
 
 ui_print "Текущий: Профиль $PROFILE"
 ui_print ""
 
-# Поиск устройства ввода с поддержкой клавиш
-EVENT_FILE=""
-for ev in /dev/input/event*; do
-    if [ -e "$ev" ]; then
-        if getevent -p "$ev" 2>/dev/null | grep -q "0114\|0115\|0116"; then
-            EVENT_FILE="$ev"
-            break
-        fi
-    fi
-done
-
-if [ -z "$EVENT_FILE" ]; then
-    for i in $(seq 0 15); do
-        if [ -e "/dev/input/event$i" ]; then
-            EVENT_FILE="/dev/input/event$i"
-            break
-        fi
-    done
-fi
-
-if [ -z "$EVENT_FILE" ] || [ ! -e "$EVENT_FILE" ]; then
-    ui_print "⚠️ Устройства ввода не найдены!"
-    ui_print "Используется текущий профиль: $PROFILE"
+# --- Создание FIFO ---
+rm -f "$FIFO"
+mkfifo "$FIFO" 2>/dev/null
+if [ ! -p "$FIFO" ]; then
+    ui_print "⚠️ Не удалось создать FIFO, используем профиль по умолчанию"
+    PROFILE=0
 else
-    ui_print "Устройство: $EVENT_FILE"
+    # --- Запуск getevent -ql в фоне (stdin из /dev/null) ---
+    getevent -ql < /dev/null > "$FIFO" 2>/dev/null &
+    GETEVENT_PID=$!
+
+    # Временный файл для передачи результата из цикла
+    echo "$PROFILE" > "$TMP_PROFILE"
+
+    start_time=$(date +%s)
+
+    ui_print "Устройство: все input-устройства"
     ui_print "Ожидание нажатий (30 сек таймаут)..."
     ui_print ""
 
-    # Создаем временный файл для профиля перед циклом
-    echo "$PROFILE" > "$MODDIR/.tmp_profile"
-
-    start_time=$(date +%s)
-    
-    getevent -lt "$EVENT_FILE" 2>/dev/null | while read -r line; do
-        # Читаем актуальное значение профиля на случай межпроцессного обновления
-        if [ -f "$MODDIR/.tmp_profile" ]; then
-            PROFILE=$(cat "$MODDIR/.tmp_profile")
+    # --- Чтение событий в ГЛАВНОМ процессе (не subshell!) ---
+    # read -t 1 таймаут 1 сек на строку. При отсутствии событий while
+    # завершается через ~30 итераций (30 сек).
+    while IFS= read -r line -t 1; do
+        current_time=$(date +%s)
+        if [ $((current_time - start_time)) -ge 30 ]; then
+            ui_print "⏱ Время истекло. Сохранён профиль $PROFILE"
+            echo "$PROFILE" > "$TMP_PROFILE"
+            break
         fi
 
         case "$line" in
             *KEY_VOLUMEUP*DOWN*)
                 PROFILE=$(( (PROFILE + 1) % 3 ))
                 ui_print "  → Профиль $PROFILE"
-                echo "$PROFILE" > "$MODDIR/.tmp_profile"
+                echo "$PROFILE" > "$TMP_PROFILE"
                 ;;
             *KEY_VOLUMEDOWN*DOWN*)
                 PROFILE=$(( (PROFILE - 1 + 3) % 3 ))
                 ui_print "  → Профиль $PROFILE"
-                echo "$PROFILE" > "$MODDIR/.tmp_profile"
+                echo "$PROFILE" > "$TMP_PROFILE"
                 ;;
             *KEY_POWER*DOWN*)
                 ui_print ""
                 ui_print "✅ Профиль $PROFILE подтверждён"
-                echo "$PROFILE" > "$MODDIR/.tmp_profile"
+                echo "$PROFILE" > "$TMP_PROFILE"
                 break
                 ;;
         esac
-
-        current_time=$(date +%s)
-        if [ $((current_time - start_time)) -gt 30 ]; then
-            ui_print ""
-            ui_print "⏱ Время истекло. Сохранен профиль $PROFILE"
-            break
-        fi
-    done &
-    
-    EVENT_PID=$!
-    
-    # Ожидание завершения фонового процесса с таймаутом
-    i=0
-    while [ $i -lt 31 ] && [ -d "/proc/$EVENT_PID" ]; do
-        sleep 1
-        i=$((i + 1))
-    done
-    
-    # Безопасно гасим getevent, если он еще висит
-    if [ -d "/proc/$EVENT_PID" ]; then
-        kill "$EVENT_PID" 2>/dev/null
-        wait "$EVENT_PID" 2>/dev/null
-    fi
-
-    if [ -f "$MODDIR/.tmp_profile" ]; then
-        PROFILE=$(cat "$MODDIR/.tmp_profile")
-        rm -f "$MODDIR/.tmp_profile"
-    fi
+    done < "$FIFO"
 fi
 
-# Запись профиля в финальный settings
+# --- Чтение результата из tmp-файла ---
+if [ -f "$TMP_PROFILE" ]; then
+    PROFILE=$(cat "$TMP_PROFILE")
+    rm -f "$TMP_PROFILE"
+fi
+
+# Валидация итогового профиля
+case "$PROFILE" in
+    0|1|2) ;;
+    *) PROFILE=0 ;;
+esac
+
+# --- Атомарная запись settings ---
+printf 'selected_carrier=%s\n' "$PROFILE" > "$TMP_SETTINGS"
+chmod 0600 "$TMP_SETTINGS"
+mv -f "$TMP_SETTINGS" "$SETTINGS"
+
 case "$PROFILE" in
     0) NAME="Latvijas Mobilais (Latvia)" ;;
     1) NAME="AT&T (USA)" ;;
     2) NAME="T-Mobile (USA)" ;;
     *) PROFILE=0; NAME="Latvijas Mobilais (Latvia)" ;;
 esac
-
-echo "selected_carrier=$PROFILE" > "$SETTINGS"
 
 ui_print ""
 ui_print "========================================"
