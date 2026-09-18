@@ -69,7 +69,7 @@ esac
 
 echo "[$(date)] ✅ Выбран оператор: $TARGET_NAME" >> "$LOGFILE"
 
-# 6. Анализ SIM-карт (исправлены пайпы)
+# 6. Анализ SIM-карт (исправлены синтаксические ошибки экранирования пайпов)
 sim_country=$(getprop gsm.sim.operator.iso-country)
 clean_sim_country=$(echo "$sim_country" | tr -d ' ,' )
 
@@ -106,8 +106,7 @@ if [ "$has_ru" = "true" ] && [ "$only_ru" = "true" ]; then
 
     echo "[$(date)] ✅ Спуфинг применен: $SOURCE_ISO -> $TARGET_ISO ($TARGET_NAME)" >> "$LOGFILE"
 
-elif [ "$has_ru" = "true" ] && [ "$has_ru" = "false" ] || [ "$only_ru" = "false" ] && [ "$has_ru" = "true" ]; then
-    # Исправлена логика комбинированных SIM
+elif [ "$has_ru" = "true" ] && [ "$only_ru" = "false" ]; then
     echo "[$(date)] ℹ️ Найдена комбинация SIM (RU + другая). Спуфинг отключен." >> "$LOGFILE"
     [ -f "$OLD_PROPS_FILE" ] && rm "$OLD_PROPS_FILE"
 

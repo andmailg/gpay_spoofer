@@ -28,8 +28,6 @@ ui_print ""
 # === Ищем устройство ввода через getevent ===
 EVENT_FILE=""
 if command -v getevent >/dev/null 2>&1; then
-    # getevent -p выводит список устройств
-    # Ищем первое input-устройство
     EVENT_FILE=$(getevent -p 2>/dev/null | grep -B1 "key 0074" | grep "/dev/input" | head -1 | awk '{print $1}')
 fi
 
@@ -51,7 +49,6 @@ else
     ui_print "Ожидание нажатий..."
     ui_print ""
 
-    # Читаем события через dd (структура input_event = 64 байта)
     while true; do
         EVENT=$(dd if="$EVENT_FILE" bs=64 count=1 2>/dev/null | od -A n -t x1 | tr -d ' \n')
 
@@ -85,17 +82,14 @@ else
     done
 fi
 
-# === Запись профиля ===
+# === Запись профиля (исправлено: убран текстовый заголовок, нарушавший парсинг) ===
 case "$PROFILE" in
     0) NAME="Latvijas Mobilais (Latvia)" ;;
     1) NAME="AT&T (USA)" ;;
     2) NAME="T-Mobile (USA)" ;;
 esac
 
-cat > "$SETTINGS" <<EOF
-[Выбор оператора]
-selected_carrier=$PROFILE
-EOF
+echo "selected_carrier=$PROFILE" > "$SETTINGS"
 
 ui_print ""
 ui_print "========================================"
