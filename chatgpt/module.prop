@@ -1,0 +1,6 @@
+id=carrier-research
+name=Carrier Research Logger
+version=1.0.0
+versionCode=1
+author=Research
+description=Исследование параметров SIM и telephony без изменения системных свойств
