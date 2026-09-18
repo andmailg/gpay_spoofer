@@ -2,7 +2,7 @@
 # Source region to trigger spoofing
 SOURCE_ISO="ru"
 
-# === Доступные операторы (выбирается в Magisk Settings) ===
+# === Доступные операторы (циклическая смена через кнопку Action в Magisk) ===
 
 # 0: Latvijas Mobilais (Latvia)
 LM_ALPHA="Latvijas Mobilais"

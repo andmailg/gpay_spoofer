@@ -1,2 +1,2 @@
 [Выбор оператора]
-selected_carrier=Выберите оператора для подмены|choice|0|Latvijas Mobilais|1|AT&T|2|T-Mobile
+action=switch_carrier.sh
