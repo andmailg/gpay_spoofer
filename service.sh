@@ -2,7 +2,7 @@
 # Автоспуфер оператора: Россия → Выбранный оператор
 
 MODDIR="${0%/*}"
-LOGFILE="/data/adb/Gpay-Spoofer.log"
+LOGFILE="$MODDIR/Gpay-Spoofer.log"
 CONFIG="$MODDIR/config.txt"
 SETTINGS="$MODDIR/settings"
 OLD_PROPS_FILE="$MODDIR/old_props.txt"
@@ -20,7 +20,7 @@ done
 
 sleep 3
 
-echo "--------------------------------------" >> "$LOGFILE"
+echo "--------------------------------------" > "$LOGFILE"
 echo "[$(date)] 🚀 GPay-Spoofer запущен" >> "$LOGFILE"
 
 if [ -f "$CONFIG" ]; then
@@ -66,22 +66,19 @@ case "$SELECTED_CARRIER" in
 esac
 
 sim_country=$(getprop gsm.sim.operator.iso-country)
-clean_sim_country=$(echo "$sim_country" | tr -d ' ,' )
+clean_sim_country=$(echo "$sim_country" | tr -d ' ,[:upper:]' | tr '[:upper:]' '[:lower:]')
+# Приводим SOURCE_ISO к нижнему регистру для надежности
+SOURCE_ISO_LC=$(echo "$SOURCE_ISO" | tr '[:upper:]' '[:lower:]')
 
 echo "[$(date)] Статус SIM: '$sim_country'" >> "$LOGFILE"
 
 has_ru=false
-case "$sim_country" in
-    *"$SOURCE_ISO"*) has_ru=true ;;
+case "$clean_sim_country" in
+    *"$SOURCE_ISO_LC"*) has_ru=true ;;
 esac
 
-only_ru=false
-if [ "$clean_sim_country" = "$SOURCE_ISO" ] || [ "$clean_sim_country" = "${SOURCE_ISO}${SOURCE_ISO}" ]; then
-    only_ru=true
-fi
-
-if [ "$has_ru" = "true" ] && [ "$only_ru" = "true" ]; then
-    echo "[$(date)] ⚠️ Обнаружена только RU SIM. Применяем спуф ($TARGET_NAME)." >> "$LOGFILE"
+if [ "$has_ru" = "true" ]; then
+    echo "[$(date)] ⚠️ Обнаружена RU SIM. Применяем спуф ($TARGET_NAME)." >> "$LOGFILE"
 
     # Сохраняем свойства в формате переменная=значение для надежного восстановления
     {
@@ -105,7 +102,7 @@ if [ "$has_ru" = "true" ] && [ "$only_ru" = "true" ]; then
     echo "[$(date)] ✅ Спуфинг применен: $SOURCE_ISO -> $TARGET_ISO ($TARGET_NAME)" >> "$LOGFILE"
 else
     echo "[$(date)] ℹ️ Условия для спуфинга не выполнены." >> "$LOGFILE"
-    [ -f "$OLD_PROPS_FILE" ] && rm "$OLD_PROPS_FILE"
+    [ -f "$OLD_PROPS_FILE" ] && rm -f "$OLD_PROPS_FILE"
 fi
 
 cp "$LOGFILE" /sdcard/Gpay-Spoofer.log 2>/dev/null

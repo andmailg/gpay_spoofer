@@ -2,27 +2,24 @@
 # install.sh — Установка модуля GPay-Spoofer с выбором профиля
 
 MODPATH="${0%/*}"
-MODDIR="/data/adb/modules/GPay-Spoofer"
-SETTINGS="$MODDIR/settings"
-
-mkdir -p "$MODDIR"
+SETTINGS="$MODPATH/settings"
 
 ui_print "========================================"
 ui_print "  GPay-Spoofer v1.2.3"
 ui_print "========================================"
 ui_print ""
 
+# Создаем файл настроек по умолчанию во временной папке установки, если его нет
+if [ ! -f "$SETTINGS" ]; then
+    echo "selected_carrier=0" > "$SETTINGS"
+fi
+
 if [ -f "$MODPATH/action.sh" ]; then
     ui_print "Запуск интерактивного выбора профиля..."
     ui_print "Используйте Громкость ВВЕРХ/ВНИЗ и Питание"
     ui_print ""
-    # Передаем целевой путь MODDIR первым аргументом в action.sh
-    sh "$MODPATH/action.sh" "$MODDIR"
-fi
-
-# Если по какой-то причине файл settings не создался, создаем дефолтный
-if [ ! -f "$SETTINGS" ] || ! grep -q "selected_carrier=" "$SETTINGS"; then
-    echo "selected_carrier=0" > "$SETTINGS"
+    # Передаем путь MODPATH как рабочий каталог для сохранения настроек
+    sh "$MODPATH/action.sh" "$MODPATH"
 fi
 
 ui_print ""

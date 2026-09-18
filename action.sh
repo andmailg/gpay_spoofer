@@ -53,20 +53,10 @@ else
     ui_print "Ожидание нажатий (30 сек таймаут)..."
     ui_print ""
 
-    echo "$PROFILE" > "$MODDIR/.tmp_profile"
-    
-    # Запускаем getevent в фоне, чтобы избежать блокировок и проблем с сабшеллом пайпа
-    getevent -lt "$EVENT_FILE" > "$MODDIR/.events" 2>/dev/null &
-    EVENT_PID=$!
-
     start_time=$(date +%s)
     
-    # Читаем лог событий построчно из файла
-    tail -f "$MODDIR/.events" 2>/dev/null | while read -r line; do
-        if [ -f "$MODDIR/.tmp_profile" ]; then
-            PROFILE=$(cat "$MODDIR/.tmp_profile")
-        fi
-
+    # Читаем getevent напрямую в цикле без использования файлов и tail, чтобы избежать багов сабшеллов
+    getevent -lt "$EVENT_FILE" 2>/dev/null | while read -r line; do
         case "$line" in
             *KEY_VOLUMEUP*DOWN*)
                 PROFILE=$(( (PROFILE + 1) % 3 ))
@@ -92,14 +82,20 @@ else
             ui_print "⏱ Время истекло. Сохранен профиль $PROFILE"
             break
         fi
-
-        # Прерываем цикл, если процесс getevent по какой-то причине завершился
-        [ ! -d "/proc/$EVENT_PID" ] && break
+    done &
+    
+    EVENT_PID=$!
+    
+    # Ожидание завершения фонового процесса с таймаутом
+    i=0
+    while [ $i -lt 31 ] && [ -d "/proc/$EVENT_PID" ]; do
+        sleep 1
+        i=$((i + 1))
     done
-
-    # Завершаем фоновые процессы
+    
+    # Жестко гасим getevent, если он еще висит
     kill $EVENT_PID 2>/dev/null
-    rm -f "$MODDIR/.events"
+    wait $EVENT_PID 2>/dev/null
 
     if [ -f "$MODDIR/.tmp_profile" ]; then
         PROFILE=$(cat "$MODDIR/.tmp_profile")
@@ -123,4 +119,4 @@ ui_print "  Профиль: $PROFILE"
 ui_print "  Оператор: $NAME"
 ui_print "========================================"
 ui_print ""
-ui_print "Готово! Перезагрузите устройство."
+ui_print "Готово!"
