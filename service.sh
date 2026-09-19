@@ -37,6 +37,9 @@ fi
 touch "$LOCKFILE"
 trap 'rm -f "$LOCKFILE"' EXIT
 
+# Попытка создать файл лога для проверки доступа
+touch $SDCARD_LOG 2>/dev/null
+
 # --- Ждём завершения загрузки Android ---
 timeout=60
 elapsed=0
