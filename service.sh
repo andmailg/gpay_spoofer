@@ -118,9 +118,3 @@ resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
 log_msg "Подмена выполнена: $TARGET_NAME (selected=$SELECTED_CARRIER)"
 log_msg "Оригинал: alpha=$ORIG_ALPHA numeric=$ORIG_NUMERIC iso=$ORIG_ISO"
-
-# --- Копируем log файл в корень SD карты ---
-SDCARD="/sdcard"
-if [ -d "$SDCARD" ]; then
-    cp -f "$LOGFILE" "$SDCARD/gpay-spoofer.log" 2>/dev/null
-fi
