@@ -8,18 +8,13 @@
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
-LOGDIR="/data/adb"
-LOGFILE="$LOGDIR/gpay-spoofer.log"
-LOCKFILE="$LOGDIR/gpay-spoofer.lock"
+LOGFILE="/sdcard/gpay-spoofer.log"
+LOCKFILE="/data/adb/gpay-spoofer.lock"
 
 # --- Функция логирования ---
 log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOGFILE"
 }
-
-# --- Обеспечиваем существование /data/adb
-mkdir -p "$LOGDIR"
-chmod 0700 "$LOGDIR"
 
 # --- Блокировка: не запускать два экземпляра ---
 if [ -e "$LOCKFILE" ]; then
@@ -42,8 +37,8 @@ while [ "$(getprop sys.boot_completed)" != "1" ]; do
     fi
 done
 
-# --- Даём telephony время инициализировать SIM ---
-sleep 5
+# --- Даём telephony и SD-карте время инициализироваться ---
+sleep 15
 
 # --- Читаем выбранный профиль ---
 SELECTED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
@@ -54,10 +49,11 @@ case "$SELECTED_CARRIER" in
 esac
 
 # --- Проверяем, что SIM — российская ---
-REAL_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null)"
+SOURCE_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null)"
+CHECK_ISO="$(echo "$SOURCE_ISO" | tr -d ',' | tr -d ' ')"
 
-if [ "$REAL_ISO" != "ru" ] && [ "$REAL_ISO" != "RU" ]; then
-    log_msg "SIM не российская (ISO=$REAL_ISO). Подмена пропущена."
+if [ "$CHECK_ISO" != "ru" ] && [ "$CHECK_ISO" != "RU" ]; then
+    log_msg "SIM не российская (ISO=$SOURCE_ISO). Подмена пропущена."
     exit 0
 fi
 
@@ -113,6 +109,12 @@ resetprop "gsm.sim.operator.alpha" "$TARGET_ALPHA"
 resetprop "gsm.sim.operator.numeric" "$TARGET_NUMERIC"
 resetprop "gsm.sim.operator.iso-country" "$TARGET_ISO"
 resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
+
+# --- Мульти-SIM слоты ---
+resetprop "gsm.sim.operator.numeric.1" "$TARGET_NUMERIC"
+resetprop "gsm.sim.operator.iso-country.1" "$TARGET_ISO"
+resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
+resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
 log_msg "Подмена выполнена: $TARGET_NAME (selected=$SELECTED_CARRIER)"
 log_msg "Оригинал: alpha=$ORIG_ALPHA numeric=$ORIG_NUMERIC iso=$ORIG_ISO"
