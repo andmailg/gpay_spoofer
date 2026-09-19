@@ -6,11 +6,20 @@
 # Подменяет свойства оператора только при обнаружении русской SIM.
 # ============================================================
 
+# Принудительно включаем запись всех выполняемых команд в лог-файл
+exec >> /data/adb/gpay-spoofer-debug.log 2>&1
+set -x
+
+echo "=== Скрипт запущен: $(date) ==="
+
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
 LOGFILE="/data/adb/gpay-spoofer.log"
 SDCARD_LOG="/sdcard/Gpay-Spoofer.log"
 LOCKFILE="/data/adb/gpay-spoofer.lock"
+
+echo "MODDIR равен: $MODDIR"
+echo "Проверка существования settings: $([ -f "$SETTINGS" ] && echo "Найден" || echo "НЕТ")"
 
 # --- Функция логирования ---
 log_msg() {
