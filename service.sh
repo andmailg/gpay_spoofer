@@ -15,12 +15,12 @@ LOCKFILE="/data/adb/gpay-spoofer.lock"
 touch "$LOGFILE" 2>/dev/null
 
 # --- Блокировка: не запускать два экземпляра ---
-if [ -e $LOCKFILE ]; then
+if [ -e "$LOCKFILE" ]; then
     exit 0
 fi
 
-touch $LOCKFILE
-trap 'rm -f $LOCKFILE' EXIT
+touch "$LOCKFILE"
+trap 'rm -f "$LOCKFILE"' EXIT
 
 # --- Ждём завершения загрузки Android ---
 timeout=60

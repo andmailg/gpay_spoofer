@@ -8,10 +8,7 @@
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
-LOGDIR="/data/adb"
-LOGFILE="$LOGDIR/gpay-spoofer.log"
-
-mkdir -p "$LOGDIR"
+LOGFILE="/sdcard/Gpay-Spoofer.log"
 
 # --- Читаем текущий профиль ---
 CURRENT="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
