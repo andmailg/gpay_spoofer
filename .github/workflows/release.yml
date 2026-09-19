@@ -29,37 +29,11 @@ jobs:
         env:
           ARCHIVE_NAME: gpay-spoofer-v${{ steps.version.outputs.version }}.zip
         run: |
-          python3 << 'PYEOF'
-          import zipfile, os, glob
+          # Убедимся, что все .sh файлы имеют права 755 прямо перед упаковкой
+          find . -name "*.sh" -exec chmod +x {} +
           
-          archive = os.environ['ARCHIVE_NAME']
-          with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as z:
-              def add_file_with_perms(filepath, arcname):
-                  st = os.stat(filepath)
-                  # Читаем права из ОС и сдвигаем их в старшие 16 бит external_attr
-                  attr = (st.st_mode & 0xFFFF) << 16
-                  
-                  # Создаем ZipInfo вручную, чтобы сохранить права
-                  zinfo = zipfile.ZipInfo.from_file(filepath, arcname)
-                  zinfo.external_attr = attr
-                  zinfo.compress_type = zipfile.ZIP_DEFLATED
-                  
-                  with open(filepath, 'rb') as f:
-                      z.writestr(zinfo, f.read())
-
-              for item in glob.glob('*'):
-                  if item not in ('.git', '.github', archive) and not item.endswith('.zip'):
-                      if os.path.isdir(item):
-                          for root, dirs, files in os.walk(item):
-                              for f in files:
-                                  filepath = os.path.join(root, f)
-                                  arcname = os.path.relpath(filepath, '.')
-                                  add_file_with_perms(filepath, arcname)
-                      else:
-                          add_file_with_perms(item, item)
-          
-          print(f"Created: {archive}")
-          PYEOF
+          # Упаковываем все файлы в архив, исключая служебные директории и сам архив
+          zip -r "${ARCHIVE_NAME}" . -x ".git/*" ".github/*" "*.zip"
           
           ls -lh "${ARCHIVE_NAME}"
           echo "archive_name=${ARCHIVE_NAME}" >> $GITHUB_OUTPUT
