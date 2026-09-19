@@ -10,7 +10,14 @@ LOGFILE="$LOGDIR/gpay-spoofer.log"
 
 # --- Функция логирования ---
 log_msg() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOGFILE"
+    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    # Всегда надежно пишем во внутренний раздел
+    echo "$msg" >> "$LOGFILE"
+    
+    # Пытаемся записать на sdcard только если папка реально существует
+    if [ -d "/sdcard" ]; then
+        echo "$msg" >> "$SDCARD_LOG" 2>/dev/null
+    fi
 }
 
 # --- Функция восстановления свойств ---
