@@ -2,32 +2,17 @@
 
 # ============================================================
 # GPay Spoofer — service.sh
-# Запускается Magisk после загрузки.
+# Запускается Магиском после загрузки.
 # Подменяет свойства оператора только при обнаружении русской SIM.
 # ============================================================
 
-# Принудительно включаем запись всех выполняемых команд в лог-файл
-exec >> /data/adb/gpay-spoofer-debug.log 2>&1
-set -x
-
-echo "=== Скрипт запущен: $(date) ==="
-
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
-LOGFILE="/data/adb/gpay-spoofer.log"
-SDCARD_LOG="/sdcard/Gpay-Spoofer.log"
+LOGFILE="/sdcard/Gpay-Spoofer.log"
 LOCKFILE="/data/adb/gpay-spoofer.lock"
 
-echo "MODDIR равен: $MODDIR"
-echo "Проверка существования settings: $([ -f "$SETTINGS" ] && echo "Найден" || echo "НЕТ")"
-
-# --- Функция логирования ---
-log_msg() {
-    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
-    echo "$msg" >> "$LOGFILE"
-    # Дублируем запись на sdcard, если она уже доступна
-    echo "$msg" >> "$SDCARD_LOG" 2>/dev/null
-}
+# --- Проверка доступа и предварительное создание файла лога ---
+touch "$LOGFILE" 2>/dev/null
 
 # --- Блокировка: не запускать два экземпляра ---
 if [ -e "$LOCKFILE" ]; then
@@ -36,9 +21,6 @@ fi
 
 touch "$LOCKFILE"
 trap 'rm -f "$LOCKFILE"' EXIT
-
-# Попытка создать файл лога для проверки доступа
-touch $SDCARD_LOG 2>/dev/null
 
 # --- Ждём завершения загрузки Android ---
 timeout=60
@@ -69,7 +51,7 @@ SOURCE_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null)"
 CHECK_ISO="$(echo "$SOURCE_ISO" | tr -d ',' | tr -d ' ')"
 
 if [ "$CHECK_ISO" != "ru" ] && [ "$CHECK_ISO" != "RU" ]; then
-    log_msg "SIM не российская (ISO=$SOURCE_ISO). Подмена пропущена."
+    echo "[$(date)] ℹ️ Спуфинг не применен. Текущий ISO: '$SOURCE_ISO'" > "$LOGFILE"
     exit 0
 fi
 
@@ -105,6 +87,9 @@ ORIG_ALPHA="$(getprop gsm.operator.alpha 2>/dev/null)"
 ORIG_NUMERIC="$(getprop gsm.operator.numeric 2>/dev/null)"
 ORIG_ISO="$(getprop gsm.operator.iso-country 2>/dev/null)"
 
+# --- Пишем стартовый лог о запуске спуфинга ---
+echo "[$(date)] 🇷🇺→🇺🇸 Обнаружена SIM ($SOURCE_ISO). Спуфинг запущен: $TARGET_NAME" > "$LOGFILE"
+
 # --- Подменяем свойства ---
 resetprop "gsm.operator.alpha" "$TARGET_ALPHA"
 resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
@@ -120,5 +105,6 @@ resetprop "gsm.sim.operator.iso-country.1" "$TARGET_ISO"
 resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
 resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
-log_msg "Подмена выполнена: $TARGET_NAME (selected=$SELECTED_CARRIER)"
-log_msg "Оригинал: alpha=$ORIG_ALPHA numeric=$ORIG_NUMERIC iso=$ORIG_ISO"
+# --- Финальная запись в лог ---
+echo "[$(date)] ✅ Параметры $TARGET_ISO применены." >> "$LOGFILE"
+echo "[$(date)] Оригинал: alpha=$ORIG_ALPHA numeric=$ORIG_NUMERIC iso=$ORIG_ISO" >> "$LOGFILE"
