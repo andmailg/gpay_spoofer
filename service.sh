@@ -51,10 +51,10 @@ SOURCE_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null)"
 CHECK_ISO="$(echo "$SOURCE_ISO" | tr -d ',' | tr -d ' ')"
 
 if [ "$CHECK_ISO" != "ru" ] && [ "$CHECK_ISO" != "RU" ]; then
-    echo "[$(date)] ℹ️ Спуфинг не применен. Текущий ISO: '$SOURCE_ISO'" > "$LOGFILE"
+    # Вот здесь используется ровно тот же подход с одиночной кавычкой и без кавычек для переменной, как в рабочем скрипте
+    echo "[$(date)] ℹ️ Спуфинг не применен. Текущий ISO: '$SOURCE_ISO'" > $LOGFILE
     exit 0
 fi
-
 # --- Определяем целевые значения ---
 case "$SELECTED_CARRIER" in
     0)
