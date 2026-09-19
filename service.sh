@@ -6,7 +6,7 @@
 # Подменяет свойства оператора только при обнаружении русской SIM.
 # ============================================================
 
-MODDIR="${0%/*}"
+MODDIR=${0%/*}
 SETTINGS="$MODDIR/settings"
 LOGFILE="/sdcard/Gpay-Spoofer.log"
 LOCKFILE="/data/adb/gpay-spoofer.lock"
