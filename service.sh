@@ -8,12 +8,16 @@
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
-LOGFILE="/sdcard/gpay-spoofer.log"
+LOGFILE="/data/adb/gpay-spoofer.log"
+SDCARD_LOG="/sdcard/Gpay-Spoofer.log"
 LOCKFILE="/data/adb/gpay-spoofer.lock"
 
 # --- Функция логирования ---
 log_msg() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOGFILE"
+    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    echo "$msg" >> "$LOGFILE"
+    # Дублируем запись на sdcard, если она уже доступна
+    echo "$msg" >> "$SDCARD_LOG" 2>/dev/null
 }
 
 # --- Блокировка: не запускать два экземпляра ---
@@ -44,7 +48,7 @@ sleep 15
 SELECTED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
 
 case "$SELECTED_CARRIER" in
-    0|1|2|3) ;;
+    0|1|2) ;;
     *) SELECTED_CARRIER=0 ;;
 esac
 
@@ -84,7 +88,7 @@ esac
 [ -n "$TARGET_NUMERIC" ] || exit 1
 [ -n "$TARGET_ISO" ] || exit 1
 
-# --- Сохраняем оригинальные значения для uninstall ---
+# --- Сохраняем оригинальные значения для информации ---
 ORIG_ALPHA="$(getprop gsm.operator.alpha 2>/dev/null)"
 ORIG_NUMERIC="$(getprop gsm.operator.numeric 2>/dev/null)"
 ORIG_ISO="$(getprop gsm.operator.iso-country 2>/dev/null)"
