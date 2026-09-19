@@ -51,10 +51,11 @@ SOURCE_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null)"
 CHECK_ISO="$(echo "$SOURCE_ISO" | tr -d ',' | tr -d ' ')"
 
 if [ "$CHECK_ISO" != "ru" ] && [ "$CHECK_ISO" != "RU" ]; then
-    # Вот здесь используется ровно тот же подход с одиночной кавычкой и без кавычек для переменной, как в рабочем скрипте
-    echo "[$(date)] ℹ️ Спуфинг не применен. Текущий ISO: '$SOURCE_ISO'" > $LOGFILE
+    # Используем >> вместо >, чтобы запись добавлялась в конец
+    echo "[$(date)] ℹ️ Спуфинг не применен. Текущий ISO: '$SOURCE_ISO'" >> $LOGFILE
     exit 0
 fi
+
 # --- Определяем целевые значения ---
 case "$SELECTED_CARRIER" in
     0)
@@ -87,8 +88,8 @@ ORIG_ALPHA="$(getprop gsm.operator.alpha 2>/dev/null)"
 ORIG_NUMERIC="$(getprop gsm.operator.numeric 2>/dev/null)"
 ORIG_ISO="$(getprop gsm.operator.iso-country 2>/dev/null)"
 
-# --- Пишем стартовый лог о запуске спуфинга ---
-echo "[$(date)] 🇷🇺→🇺🇸 Обнаружена SIM ($SOURCE_ISO). Спуфинг запущен: $TARGET_NAME" > $LOGFILE
+# --- Пишем стартовый лог о запуске спуфинга (через >>) ---
+echo "[$(date)] 🇷🇺→🇺🇸 Обнаружена SIM ($SOURCE_ISO). Спуфинг запущен: $TARGET_NAME" >> $LOGFILE
 
 # --- Подменяем свойства ---
 resetprop "gsm.operator.alpha" "$TARGET_ALPHA"
@@ -105,6 +106,6 @@ resetprop "gsm.sim.operator.iso-country.1" "$TARGET_ISO"
 resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
 resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
-# --- Финальная запись в лог ---
+# --- Финальная запись в лог (через >>) ---
 echo "[$(date)] ✅ Параметры $TARGET_ISO применены." >> $LOGFILE
 echo "[$(date)] Оригинал: alpha=$ORIG_ALPHA numeric=$ORIG_NUMERIC iso=$ORIG_ISO" >> $LOGFILE
