@@ -12,7 +12,7 @@ LOGFILE="/sdcard/Gpay-Spoofer.log"
 LOCKFILE="/data/adb/gpay-spoofer.lock"
 
 # --- Проверка доступа и предварительное создание файла лога ---
-touch $LOGFILE 2>/dev/null
+touch "$LOGFILE" 2>/dev/null
 
 # --- Блокировка: не запускать два экземпляра ---
 if [ -e $LOCKFILE ]; then
@@ -52,7 +52,7 @@ CHECK_ISO="$(echo "$SOURCE_ISO" | tr -d ',' | tr -d ' ')"
 
 if [ "$CHECK_ISO" != "ru" ] && [ "$CHECK_ISO" != "RU" ]; then
     # Используем >> вместо >, чтобы запись добавлялась в конец
-    echo "[$(date)] ℹ️ Спуфинг не применен. Текущий ISO: '$SOURCE_ISO'" >> $LOGFILE
+    echo "[$(date)] ℹ️ Спуфинг не применен. Текущий ISO: '$SOURCE_ISO'" >> "$LOGFILE"
     exit 0
 fi
 
@@ -89,7 +89,7 @@ ORIG_NUMERIC="$(getprop gsm.operator.numeric 2>/dev/null)"
 ORIG_ISO="$(getprop gsm.operator.iso-country 2>/dev/null)"
 
 # --- Пишем стартовый лог о запуске спуфинга (через >>) ---
-echo "[$(date)] 🇷🇺→🇺🇸 Обнаружена SIM ($SOURCE_ISO). Спуфинг запущен: $TARGET_NAME" >> $LOGFILE
+echo "[$(date)] 🇷🇺→🇺🇸 Обнаружена SIM ($SOURCE_ISO). Спуфинг запущен: $TARGET_NAME" >> "$LOGFILE"
 
 # --- Подменяем свойства ---
 resetprop "gsm.operator.alpha" "$TARGET_ALPHA"
@@ -107,5 +107,5 @@ resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
 resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
 # --- Финальная запись в лог (через >>) ---
-echo "[$(date)] ✅ Параметры $TARGET_ISO применены." >> $LOGFILE
-echo "[$(date)] Оригинал: alpha=$ORIG_ALPHA numeric=$ORIG_NUMERIC iso=$ORIG_ISO" >> $LOGFILE
+echo "[$(date)] ✅ Параметры $TARGET_ISO применены." >> "$LOGFILE"
+echo "[$(date)] Оригинал: alpha=$ORIG_ALPHA numeric=$ORIG_NUMERIC iso=$ORIG_ISO" >> "$LOGFILE"
