@@ -30,7 +30,7 @@ jobs:
           ARCHIVE_NAME: gpay-spoofer-v${{ steps.version.outputs.version }}.zip
         run: |
           # Убедимся, что все .sh файлы имеют права 755 прямо перед упаковкой
-          find . -name "*.sh" -exec chmod +x {} +
+          # find . -name "*.sh" -exec chmod +x {} +
           
           # Упаковываем все файлы в архив, исключая служебные директории и сам архив
           zip -r "${ARCHIVE_NAME}" . -x ".git/*" ".github/*" "*.zip"

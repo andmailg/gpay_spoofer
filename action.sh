@@ -17,17 +17,16 @@ mkdir -p "$LOGDIR"
 CURRENT="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
 
 case "$CURRENT" in
-    0|1|2|3) ;;
+    0|1|2) ;;
     *) CURRENT=0 ;;
 esac
 
-NEXT=$(( (CURRENT + 1) % 4 ))
+NEXT=$(( (CURRENT + 1) % 3 ))
 
 case "$NEXT" in
-    0) NAME="Beeline (RU)" ;;
-    1) NAME="Latvijas Mobilais (Latvia)" ;;
-    2) NAME="AT&T (USA)" ;;
-    3) NAME="T-Mobile (USA)" ;;
+    0) NAME="Latvijas Mobilais (Latvia)" ;;
+    1) NAME="AT&T (USA)" ;;
+    2) NAME="T-Mobile (USA)" ;;
 esac
 
 # --- Записываем новый профиль ---

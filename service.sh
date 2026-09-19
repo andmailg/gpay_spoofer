@@ -60,34 +60,22 @@ fi
 # --- Определяем целевые значения ---
 case "$SELECTED_CARRIER" in
     0)
-        TARGET_ALPHA="Beeline_RU"
-        TARGET_NUMERIC="25001"
-        TARGET_ISO="ru"
-        TARGET_NAME="Beeline (RU)"
-        ;;
-    1)
         TARGET_ALPHA="Latvijas Mobilais"
         TARGET_NUMERIC="24701"
         TARGET_ISO="lv"
         TARGET_NAME="Latvijas Mobilais (Latvia)"
         ;;
-    2)
+    1)
         TARGET_ALPHA="ATT"
         TARGET_NUMERIC="310094"
         TARGET_ISO="us"
         TARGET_NAME="AT&T (USA)"
         ;;
-    3)
+    2)
         TARGET_ALPHA="T-Mobile"
         TARGET_NUMERIC="310260"
         TARGET_ISO="us"
         TARGET_NAME="T-Mobile (USA)"
-        ;;
-    *)
-        TARGET_ALPHA="Beeline_RU"
-        TARGET_NUMERIC="25001"
-        TARGET_ISO="ru"
-        TARGET_NAME="Beeline (RU) [default]"
         ;;
 esac
 
