@@ -82,19 +82,16 @@ fi
 # --- Определяем целевые значения (с учетом сдвига индексов: 1, 2, 3) ---
 case "$SELECTED_CARRIER" in
     1)
-        #TARGET_ALPHA="Latvijas Mobilais"
         TARGET_NUMERIC="24701"
         TARGET_ISO="lv"
         TARGET_NAME="Latvijas Mobilais 🇱🇻"
         ;;
     2)
-        #TARGET_ALPHA="ATT"
         TARGET_NUMERIC="310094"
         TARGET_ISO="🇺🇸"
         TARGET_NAME="AT&T 🇺🇸"
         ;;
     3)
-        #TARGET_ALPHA="T-Mobile"
         TARGET_NUMERIC="310260"
         TARGET_ISO="🇺🇸"
         TARGET_NAME="T-Mobile 🇺🇸"
@@ -102,7 +99,6 @@ case "$SELECTED_CARRIER" in
 esac
 
 # --- Проверяем, что все переменные определены ---
-#[ -n "$TARGET_ALPHA" ] || exit 1
 [ -n "$TARGET_NUMERIC" ] || exit 1
 [ -n "$TARGET_ISO" ] || exit 1
 
@@ -110,10 +106,8 @@ esac
 echo "[$(date)] Обнаружена SIM 🇷🇺  ($SOURCE_ISO). Спуфинг запущен: 🇷🇺→🇱🇻 $TARGET_NAME" >> $LOGFILE
 
 # --- Подменяем свойства ---
-#resetprop "gsm.operator.alpha" "$TARGET_ALPHA"
 resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
 resetprop "gsm.operator.iso-country" "$TARGET_ISO"
-#resetprop "gsm.sim.operator.alpha" "$TARGET_ALPHA"
 resetprop "gsm.sim.operator.numeric" "$TARGET_NUMERIC"
 resetprop "gsm.sim.operator.iso-country" "$TARGET_ISO"
 resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"

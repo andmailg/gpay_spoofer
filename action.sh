@@ -25,32 +25,28 @@ SELECTED_CARRIER=$(( (CURRENT + 1) % 4 ))
 
 # --- Определяем целевые значения (с учетом сдвига индексов: 1, 2, 3) ---
 case "$SELECTED_CARRIER" in
-    0) 
+    0)
+        TARGET_NAME="🔄 Оригинальные значения (Сброс)"
         if [ -f "$PROPS_FILE" ]; then
+            # Читаем оригиналы (они сохраняются в файл с префиксом ORIG)
             . "$PROPS_FILE"
             
-            # Восстанавливаем оригиналы, если они были сохранены
-            #[ -n "$ORIG_ALPHA" ] && resetprop "gsm.operator.alpha" "$ORIG_ALPHA"
-            [ -n "$ORIG_NUMERIC" ] && resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
-            [ -n "$ORIG_ISO" ] && resetprop "gsm.operator.iso-country" "$TARGET_ISO"
-            
+            # Присваиваем ORIG значения переменным TARGET
+            TARGET_NUMERIC="$ORIG_NUMERIC"
+            TARGET_ISO="$ORIG_ISO"
         fi
-        TARGET_NAME="🔄 Оригинальные значения (Сброс)"
         ;;
     1)
-        #TARGET_ALPHA="Latvijas Mobilais"
         TARGET_NUMERIC="24701"
         TARGET_ISO="lv"
         TARGET_NAME="Latvijas Mobilais 🇱🇻"
         ;;
     2)
-        #TARGET_ALPHA="ATT"
         TARGET_NUMERIC="310094"
         TARGET_ISO="🇺🇸"
         TARGET_NAME="AT&T 🇺🇸"
         ;;
     3)
-        #TARGET_ALPHA="T-Mobile"
         TARGET_NUMERIC="310260"
         TARGET_ISO="🇺🇸"
         TARGET_NAME="T-Mobile 🇺🇸"
@@ -66,7 +62,6 @@ chmod 0600 "$SETTINGS"
 
 
 # Прописываем значения
-#resetprop "gsm.sim.operator.alpha" "$ORIG_ALPHA"
 resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
 resetprop "gsm.operator.iso-country" "$TARGET_ISO"
 resetprop "gsm.sim.operator.numeric" "$TARGET_NUMERIC"
@@ -83,16 +78,16 @@ resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
 # --- Логируем текущее состояние---
 {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Profile changed: $SELECTED_CARRIER — $TARGET_NAME"
-    echo "Real SIM ISO: $(getprop gsm.sim.operator.iso-country 2>/dev/null)"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Profile changed: $SELECTED_CARRIER — '$TARGET_NAME'"
+    echo "Real SIM ISO: "$(getprop gsm.sim.operator.iso-country 2>/dev/null)"
     echo "Real SIM numeric: $(getprop gsm.sim.operator.numeric 2>/dev/null)"
-    echo "Real operator ISO: $(getprop gsm.operator.iso-country 2>/dev/null)"
+    echo "Real operator ISO: "$(getprop gsm.operator.iso-country 2>/dev/null)"
     echo "Real operator numeric: $(getprop gsm.operator.numeric 2>/dev/null)"
 } >> "$LOGFILE"
 
 chmod 0600 "$LOGFILE"
 
-echo "Selected profile: $SELECTED_CARRIER — $TARGET_NAME"
+echo "Selected profile: $SELECTED_CARRIER — '$TARGET_NAME'"
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
     echo "Оригинальные свойства оператора применены! Перезагрузка не обязательна."
 else
