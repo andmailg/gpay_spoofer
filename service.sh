@@ -80,19 +80,19 @@ case "$SELECTED_CARRIER" in
         TARGET_ALPHA="Latvijas Mobilais"
         TARGET_NUMERIC="24701"
         TARGET_ISO="lv"
-        TARGET_NAME="Latvijas Mobilais (Latvia)"
+        TARGET_NAME="Latvijas Mobilais 🇱🇻"
         ;;
     2)
         TARGET_ALPHA="ATT"
         TARGET_NUMERIC="310094"
-        TARGET_ISO="us"
-        TARGET_NAME="AT&T (USA)"
+        TARGET_ISO="🇺🇸"
+        TARGET_NAME="AT&T 🇺🇸"
         ;;
     3)
         TARGET_ALPHA="T-Mobile"
         TARGET_NUMERIC="310260"
-        TARGET_ISO="us"
-        TARGET_NAME="T-Mobile (USA)"
+        TARGET_ISO="🇺🇸"
+        TARGET_NAME="T-Mobile 🇺🇸"
         ;;
 esac
 
@@ -102,7 +102,7 @@ esac
 [ -n "$TARGET_ISO" ] || exit 1
 
 # --- Пишем стартовый лог о запуске спуфинга (через >>) ---
-echo "[$(date)] 🇷🇺→🇺🇸 Обнаружена SIM ($SOURCE_ISO). Спуфинг запущен: $TARGET_NAME" >> $LOGFILE
+echo "[$(date)] Обнаружена SIM 🇷🇺  ($SOURCE_ISO). Спуфинг запущен: 🇷🇺→🇱🇻 $TARGET_NAME" >> $LOGFILE
 
 # --- Подменяем свойства ---
 resetprop "gsm.operator.alpha" "$TARGET_ALPHA"
@@ -120,5 +120,5 @@ resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
 resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
 # --- Финальная запись в лог (через >>) ---
-echo "[$(date)] ✅ Параметры $TARGET_ISO применены." >> $LOGFILE
-echo "[$(date)] Оригинал: alpha=$ORIG_ALPHA numeric=$ORIG_NUMERIC iso=$ORIG_ISO" >> $LOGFILE
+echo "[$(date)] ✅ Параметры $TARGET_NAME применены:" >> $LOGFILE
+echo "[$(date)] alpha=$TARGET_ALPHA numeric=$TARGET_NUMERIC iso=$TARGET_ISO" >> $LOGFILE

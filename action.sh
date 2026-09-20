@@ -24,9 +24,9 @@ NEXT=$(( (CURRENT + 1) % 4 ))
 
 case "$NEXT" in
     0) NAME="🔄 Оригинальные значения (Сброс)" ;;
-    1) NAME="Latvijas Mobilais (Latvia)" ;;
-    2) NAME="AT&T (USA)" ;;
-    3) NAME="T-Mobile (USA)" ;;
+    1) NAME="Latvijas Mobilais 🇱🇻" ;;
+    2) NAME="AT&T 🇺🇸" ;;
+    3) NAME="T-Mobile 🇺🇸" ;;
 esac
 
 # --- Записываем новый профиль в settings ---
