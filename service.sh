@@ -43,7 +43,7 @@ SELECTED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | h
 
 case "$SELECTED_CARRIER" in
     0|1|2|3) ;;
-    *) SELECTED_CARRIER=1 ;;
+    *) SELECTED_CARRIER=0 ;;
 esac
 
 # --- Сохраняем оригинальные значения для восстановления (action.sh / uninstall) ---
