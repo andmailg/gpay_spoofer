@@ -84,17 +84,17 @@ case "$SELECTED_CARRIER" in
     1)
         TARGET_NUMERIC="24701"
         TARGET_ISO="lv"
-        TARGET_NAME="Latvijas Mobilais 🇱🇻"
+        TARGET_NAME="🇱🇻 Latvijas Mobilais"
         ;;
     2)
         TARGET_NUMERIC="310094"
         TARGET_ISO="🇺🇸"
-        TARGET_NAME="AT&T 🇺🇸"
+        TARGET_NAME="🇺🇸 AT&T"
         ;;
     3)
         TARGET_NUMERIC="310260"
         TARGET_ISO="🇺🇸"
-        TARGET_NAME="T-Mobile 🇺🇸"
+        TARGET_NAME="🇺🇸 T-Mobile"
         ;;
 esac
 

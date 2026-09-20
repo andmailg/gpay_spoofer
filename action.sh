@@ -39,17 +39,17 @@ case "$SELECTED_CARRIER" in
     1)
         TARGET_NUMERIC="24701"
         TARGET_ISO="lv"
-        TARGET_NAME="Latvijas Mobilais 🇱🇻"
+        TARGET_NAME="🇱🇻 Latvijas Mobilais"
         ;;
     2)
         TARGET_NUMERIC="310094"
         TARGET_ISO="🇺🇸"
-        TARGET_NAME="AT&T 🇺🇸"
+        TARGET_NAME="🇺🇸 AT&T"
         ;;
     3)
         TARGET_NUMERIC="310260"
         TARGET_ISO="🇺🇸"
-        TARGET_NAME="T-Mobile 🇺🇸"
+        TARGET_NAME="🇺🇸 T-Mobile"
         ;;
 esac
 
@@ -78,7 +78,7 @@ resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
 # --- Логируем текущее состояние ---
 {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Profile changed: $SELECTED_CARRIER — \"$TARGET_NAME\""
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Profile changed: $SELECTED_CARRIER — $TARGET_NAME"
     echo "Real SIM ISO: $(getprop gsm.sim.operator.iso-country 2>/dev/null)"
     echo "Real SIM numeric: $(getprop gsm.sim.operator.numeric 2>/dev/null)"
     echo "Real operator ISO: $(getprop gsm.operator.iso-country 2>/dev/null)"
@@ -87,7 +87,7 @@ resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
 chmod 0600 "$LOGFILE"
 
-echo "Selected profile: $SELECTED_CARRIER — \"$TARGET_NAME\""
+echo "Selected profile: $SELECTED_CARRIER — $TARGET_NAME"
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
     echo "Оригинальные свойства оператора применены! Перезагрузка не обязательна."
 else
