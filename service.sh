@@ -11,9 +11,6 @@ SETTINGS="$MODDIR/settings"
 LOGFILE="/sdcard/Gpay-Spoofer.log"
 LOCKFILE="/data/adb/gpay-spoofer.lock"
 
-# --- Проверка доступа и предварительное создание файла лога ---
-touch "$LOGFILE" 2>/dev/null
-
 # --- Блокировка: не запускать два экземпляра ---
 if [ -e "$LOCKFILE" ]; then
     exit 0
@@ -57,6 +54,10 @@ ORIG_ALPHA="$ORIG_ALPHA"
 ORIG_NUMERIC="$ORIG_NUMERIC"
 ORIG_ISO="$ORIG_ISO"
 EOF
+
+# --- Гарантированно создаем файл лога на SD-карте перед первой записью ---
+mkdir -p /sdcard
+[ ! -f "$LOGFILE" ] && touch "$LOGFILE"
 
 # --- Если выбран профиль 0 (Оригинал), то спуфинг пропускаем ---
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
