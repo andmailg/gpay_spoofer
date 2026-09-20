@@ -44,13 +44,18 @@ case "$SELECTED_CARRIER" in
 esac
 
 # --- Сохраняем оригинальные значения для восстановления (action.sh / uninstall) ---
-ORIG_ALPHA="$(getprop gsm.operator.alpha 2>/dev/null)"
+#ORIG_ALPHA="$(getprop gsm.operator.alpha 2>/dev/null)"
 ORIG_NUMERIC="$(getprop gsm.operator.numeric 2>/dev/null)"
 ORIG_ISO="$(getprop gsm.operator.iso-country 2>/dev/null)"
 
 # Записываем их в файл в директории модуля, чтобы action.sh мог их прочитать
+#cat << EOF > "$MODDIR/original_props"
+#ORIG_ALPHA="$ORIG_ALPHA"
+#ORIG_NUMERIC="$ORIG_NUMERIC"
+#ORIG_ISO="$ORIG_ISO"
+#EOF
+
 cat << EOF > "$MODDIR/original_props"
-ORIG_ALPHA="$ORIG_ALPHA"
 ORIG_NUMERIC="$ORIG_NUMERIC"
 ORIG_ISO="$ORIG_ISO"
 EOF
@@ -77,19 +82,19 @@ fi
 # --- Определяем целевые значения (с учетом сдвига индексов: 1, 2, 3) ---
 case "$SELECTED_CARRIER" in
     1)
-        TARGET_ALPHA="Latvijas Mobilais"
+        #TARGET_ALPHA="Latvijas Mobilais"
         TARGET_NUMERIC="24701"
         TARGET_ISO="lv"
         TARGET_NAME="Latvijas Mobilais 🇱🇻"
         ;;
     2)
-        TARGET_ALPHA="ATT"
+        #TARGET_ALPHA="ATT"
         TARGET_NUMERIC="310094"
         TARGET_ISO="🇺🇸"
         TARGET_NAME="AT&T 🇺🇸"
         ;;
     3)
-        TARGET_ALPHA="T-Mobile"
+        #TARGET_ALPHA="T-Mobile"
         TARGET_NUMERIC="310260"
         TARGET_ISO="🇺🇸"
         TARGET_NAME="T-Mobile 🇺🇸"
@@ -97,7 +102,7 @@ case "$SELECTED_CARRIER" in
 esac
 
 # --- Проверяем, что все переменные определены ---
-[ -n "$TARGET_ALPHA" ] || exit 1
+#[ -n "$TARGET_ALPHA" ] || exit 1
 [ -n "$TARGET_NUMERIC" ] || exit 1
 [ -n "$TARGET_ISO" ] || exit 1
 
@@ -105,10 +110,10 @@ esac
 echo "[$(date)] Обнаружена SIM 🇷🇺  ($SOURCE_ISO). Спуфинг запущен: 🇷🇺→🇱🇻 $TARGET_NAME" >> $LOGFILE
 
 # --- Подменяем свойства ---
-resetprop "gsm.operator.alpha" "$TARGET_ALPHA"
+#resetprop "gsm.operator.alpha" "$TARGET_ALPHA"
 resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
 resetprop "gsm.operator.iso-country" "$TARGET_ISO"
-resetprop "gsm.sim.operator.alpha" "$TARGET_ALPHA"
+#resetprop "gsm.sim.operator.alpha" "$TARGET_ALPHA"
 resetprop "gsm.sim.operator.numeric" "$TARGET_NUMERIC"
 resetprop "gsm.sim.operator.iso-country" "$TARGET_ISO"
 resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
@@ -120,5 +125,5 @@ resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
 resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
 # --- Финальная запись в лог (через >>) ---
-echo "[$(date)] ✅ Параметры $TARGET_NAME применены:" >> $LOGFILE
-echo "[$(date)] alpha=$TARGET_ALPHA numeric=$TARGET_NUMERIC iso=$TARGET_ISO" >> $LOGFILE
+echo "[$(date)] ✅ Параметры "$TARGET_NAME" применены:" >> $LOGFILE
+echo "[$(date)] numeric=$TARGET_NUMERIC iso=$TARGET_ISO" >> $LOGFILE

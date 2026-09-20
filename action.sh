@@ -20,48 +20,70 @@ case "$CURRENT" in
 esac
 
 # Цикл переключения на 4 значения: 0, 1, 2, 3
-NEXT=$(( (CURRENT + 1) % 4 ))
+SELECTED_CARRIER=$(( (CURRENT + 1) % 4 ))
 
-case "$NEXT" in
-    0) NAME="🔄 Оригинальные значения (Сброс)" ;;
-    1) NAME="Latvijas Mobilais 🇱🇻" ;;
-    2) NAME="AT&T 🇺🇸" ;;
-    3) NAME="T-Mobile 🇺🇸" ;;
+
+# --- Определяем целевые значения (с учетом сдвига индексов: 1, 2, 3) ---
+case "$SELECTED_CARRIER" in
+    0) 
+        if [ -f "$PROPS_FILE" ]; then
+            . "$PROPS_FILE"
+            
+            # Восстанавливаем оригиналы, если они были сохранены
+            #[ -n "$ORIG_ALPHA" ] && resetprop "gsm.operator.alpha" "$ORIG_ALPHA"
+            [ -n "$ORIG_NUMERIC" ] && resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
+            [ -n "$ORIG_ISO" ] && resetprop "gsm.operator.iso-country" "$TARGET_ISO"
+            
+        fi
+        TARGET_NAME="🔄 Оригинальные значения (Сброс)"
+        ;;
+    1)
+        #TARGET_ALPHA="Latvijas Mobilais"
+        TARGET_NUMERIC="24701"
+        TARGET_ISO="lv"
+        TARGET_NAME="Latvijas Mobilais 🇱🇻"
+        ;;
+    2)
+        #TARGET_ALPHA="ATT"
+        TARGET_NUMERIC="310094"
+        TARGET_ISO="🇺🇸"
+        TARGET_NAME="AT&T 🇺🇸"
+        ;;
+    3)
+        #TARGET_ALPHA="T-Mobile"
+        TARGET_NUMERIC="310260"
+        TARGET_ISO="🇺🇸"
+        TARGET_NAME="T-Mobile 🇺🇸"
+        ;;
 esac
 
 # --- Записываем новый профиль в settings ---
 TMPFILE="$SETTINGS.tmp.$$"
-printf 'selected_carrier=%s\n' "$NEXT" > "$TMPFILE"
+printf 'selected_carrier=%s\n' "$SELECTED_CARRIER" > "$TMPFILE"
 chmod 0600 "$TMPFILE"
 mv -f "$TMPFILE" "$SETTINGS"
 chmod 0600 "$SETTINGS"
 
-# --- Если выбран пункт 0, сразу применяем оригинальные свойства ---
-if [ "$NEXT" -eq 0 ]; then
-    if [ -f "$PROPS_FILE" ]; then
-        . "$PROPS_FILE"
-        
-        # Восстанавливаем оригиналы, если они были сохранены
-        [ -n "$ORIG_ALPHA" ] && resetprop "gsm.operator.alpha" "$ORIG_ALPHA"
-        [ -n "$ORIG_NUMERIC" ] && resetprop "gsm.operator.numeric" "$ORIG_NUMERIC"
-        [ -n "$ORIG_ISO" ] && resetprop "gsm.operator.iso-country" "$ORIG_ISO"
-        
-        # Возвращаем сим-карту к исходным значениям
-        resetprop "gsm.sim.operator.alpha" "$ORIG_ALPHA"
-        resetprop "gsm.sim.operator.numeric" "$ORIG_NUMERIC"
-        resetprop "gsm.sim.operator.iso-country" "$ORIG_ISO"
-        
-        # Сбрасываем мульти-слоты
-        resetprop "gsm.sim.operator.numeric.1" "$ORIG_NUMERIC"
-        resetprop "gsm.sim.operator.iso-country.1" "$ORIG_ISO"
-        resetprop "gsm.sim.operator.numeric.2" "$ORIG_NUMERIC"
-        resetprop "gsm.sim.operator.iso-country.2" "$ORIG_ISO"
-    fi
-fi
 
-# --- Логируем ---
+# Прописываем значения
+#resetprop "gsm.sim.operator.alpha" "$ORIG_ALPHA"
+resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
+resetprop "gsm.operator.iso-country" "$TARGET_ISO"
+resetprop "gsm.sim.operator.numeric" "$TARGET_NUMERIC"
+resetprop "gsm.sim.operator.iso-country" "$TARGET_ISO"
+resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
+
+# Сбрасываем мульти-слоты
+resetprop "gsm.sim.operator.numeric.1" "$TARGET_NUMERIC"
+resetprop "gsm.sim.operator.iso-country.1" "$TARGET_ISO"
+resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
+resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
+
+
+
+# --- Логируем текущее состояние---
 {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Profile changed: $NEXT — $NAME"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Profile changed: $SELECTED_CARRIER — $TARGET_NAME"
     echo "Real SIM ISO: $(getprop gsm.sim.operator.iso-country 2>/dev/null)"
     echo "Real SIM numeric: $(getprop gsm.sim.operator.numeric 2>/dev/null)"
     echo "Real operator ISO: $(getprop gsm.operator.iso-country 2>/dev/null)"
@@ -70,8 +92,8 @@ fi
 
 chmod 0600 "$LOGFILE"
 
-echo "Selected profile: $NEXT — $NAME"
-if [ "$NEXT" -eq 0 ]; then
+echo "Selected profile: $SELECTED_CARRIER — $TARGET_NAME"
+if [ "$SELECTED_CARRIER" -eq 0 ]; then
     echo "Оригинальные свойства оператора применены! Перезагрузка не обязательна."
 else
     echo "Перезапустите service.sh или перезагрузите устройство для применения."
