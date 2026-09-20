@@ -83,10 +83,17 @@ esac
 [ -n "$TARGET_NUMERIC" ] || exit 1
 [ -n "$TARGET_ISO" ] || exit 1
 
-# --- Сохраняем оригинальные значения для информации ---
+# --- Сохраняем оригинальные значения для восстановления (action.sh / uninstall) ---
 ORIG_ALPHA="$(getprop gsm.operator.alpha 2>/dev/null)"
 ORIG_NUMERIC="$(getprop gsm.operator.numeric 2>/dev/null)"
 ORIG_ISO="$(getprop gsm.operator.iso-country 2>/dev/null)"
+
+# Записываем их в файл в директории модуля, чтобы action.sh мог их прочитать
+cat << EOF > "$MODDIR/original_props"
+ORIG_ALPHA="$ORIG_ALPHA"
+ORIG_NUMERIC="$ORIG_NUMERIC"
+ORIG_ISO="$ORIG_ISO"
+EOF
 
 # --- Пишем стартовый лог о запуске спуфинга (через >>) ---
 echo "[$(date)] 🇷🇺→🇺🇸 Обнаружена SIM ($SOURCE_ISO). Спуфинг запущен: $TARGET_NAME" >> "$LOGFILE"
@@ -107,5 +114,5 @@ resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
 resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
 # --- Финальная запись в лог (через >>) ---
-echo "[$(date)] ✅ Параметры $TARGET_ISO применены." >> "$LOGFILE"
-echo "[$(date)] Оригинал: alpha=$ORIG_ALPHA numeric=$ORIG_NUMERIC iso=$ORIG_ISO" >> "$LOGFILE"
+echo "[$(date)] ✅ Параметры "$TARGET_ISO" применены." >> "$LOGFILE"
+echo "[$(date)] Оригинал: alpha="$ORIG_ALPHA" numeric=$ORIG_NUMERIC iso=$ORIG_ISO" >> "$LOGFILE"
