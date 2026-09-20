@@ -60,7 +60,7 @@ EOF
 
 # --- Если выбран профиль 0 (Оригинал), то спуфинг пропускаем ---
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
-    echo "[$(date)] ℹ️ Выбран профиль 0 (Оригинал). Спуфинг пропущен." >> "$LOGFILE"
+    echo "[$(date)] ℹ️ Выбран профиль 0 (Оригинал). Спуфинг пропущен." >> $LOGFILE
     exit 0
 fi
 
@@ -69,7 +69,7 @@ SOURCE_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null)"
 CHECK_ISO="$(echo "$SOURCE_ISO" | tr -d ',' | tr -d ' ')"
 
 if [ "$CHECK_ISO" != "ru" ] && [ "$CHECK_ISO" != "RU" ]; then
-    echo "[$(date)] ℹ️ Спуфинг не применен. SIM не российская (ISO: '$SOURCE_ISO')" >> "$LOGFILE"
+    echo "[$(date)] ℹ️ Спуфинг не применен. SIM не российская (ISO: '$SOURCE_ISO')" >> $LOGFILE
     exit 0
 fi
 
@@ -101,7 +101,7 @@ esac
 [ -n "$TARGET_ISO" ] || exit 1
 
 # --- Пишем стартовый лог о запуске спуфинга (через >>) ---
-echo "[$(date)] 🇷🇺→🇺🇸 Обнаружена SIM ($SOURCE_ISO). Спуфинг запущен: $TARGET_NAME" >> "$LOGFILE"
+echo "[$(date)] 🇷🇺→🇺🇸 Обнаружена SIM ($SOURCE_ISO). Спуфинг запущен: $TARGET_NAME" >> $LOGFILE
 
 # --- Подменяем свойства ---
 resetprop "gsm.operator.alpha" "$TARGET_ALPHA"
@@ -119,5 +119,5 @@ resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
 resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
 # --- Финальная запись в лог (через >>) ---
-echo "[$(date)] ✅ Параметры $TARGET_ISO применены." >> "$LOGFILE"
-echo "[$(date)] Оригинал: alpha=$ORIG_ALPHA numeric=$ORIG_NUMERIC iso=$ORIG_ISO" >> "$LOGFILE"
+echo "[$(date)] ✅ Параметры $TARGET_ISO применены." >> $LOGFILE
+echo "[$(date)] Оригинал: alpha=$ORIG_ALPHA numeric=$ORIG_NUMERIC iso=$ORIG_ISO" >> $LOGFILE
