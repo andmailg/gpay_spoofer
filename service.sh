@@ -38,50 +38,13 @@ done
 # --- Даём telephony и SD-карте время инициализироваться ---
 sleep 15
 
-# --- Читаем выбранный профиль ---
+# --- Читаем выбранный профиль (теперь допустимы 0, 1, 2, 3) ---
 SELECTED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
 
 case "$SELECTED_CARRIER" in
-    0|1|2) ;;
+    0|1|2|3) ;;
     *) SELECTED_CARRIER=0 ;;
 esac
-
-# --- Проверяем, что SIM — российская ---
-SOURCE_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null)"
-CHECK_ISO="$(echo "$SOURCE_ISO" | tr -d ',' | tr -d ' ')"
-
-if [ "$CHECK_ISO" != "ru" ] && [ "$CHECK_ISO" != "RU" ]; then
-    # Используем >> вместо >, чтобы запись добавлялась в конец
-    echo "[$(date)] ℹ️ Спуфинг не применен. Текущий ISO: '$SOURCE_ISO'" >> "$LOGFILE"
-    exit 0
-fi
-
-# --- Определяем целевые значения ---
-case "$SELECTED_CARRIER" in
-    0)
-        TARGET_ALPHA="Latvijas Mobilais"
-        TARGET_NUMERIC="24701"
-        TARGET_ISO="lv"
-        TARGET_NAME="Latvijas Mobilais (Latvia)"
-        ;;
-    1)
-        TARGET_ALPHA="ATT"
-        TARGET_NUMERIC="310094"
-        TARGET_ISO="us"
-        TARGET_NAME="AT&T (USA)"
-        ;;
-    2)
-        TARGET_ALPHA="T-Mobile"
-        TARGET_NUMERIC="310260"
-        TARGET_ISO="us"
-        TARGET_NAME="T-Mobile (USA)"
-        ;;
-esac
-
-# --- Проверяем, что все переменные определены ---
-[ -n "$TARGET_ALPHA" ] || exit 1
-[ -n "$TARGET_NUMERIC" ] || exit 1
-[ -n "$TARGET_ISO" ] || exit 1
 
 # --- Сохраняем оригинальные значения для восстановления (action.sh / uninstall) ---
 ORIG_ALPHA="$(getprop gsm.operator.alpha 2>/dev/null)"
@@ -94,6 +57,48 @@ ORIG_ALPHA="$ORIG_ALPHA"
 ORIG_NUMERIC="$ORIG_NUMERIC"
 ORIG_ISO="$ORIG_ISO"
 EOF
+
+# --- Если выбран профиль 0 (Оригинал), то спуфинг пропускаем ---
+if [ "$SELECTED_CARRIER" -eq 0 ]; then
+    echo "[$(date)] ℹ️ Выбран профиль 0 (Оригинал). Спуфинг пропущен." >> "$LOGFILE"
+    exit 0
+fi
+
+# --- Проверяем, что SIM — российская ---
+SOURCE_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null)"
+CHECK_ISO="$(echo "$SOURCE_ISO" | tr -d ',' | tr -d ' ')"
+
+if [ "$CHECK_ISO" != "ru" ] && [ "$CHECK_ISO" != "RU" ]; then
+    echo "[$(date)] ℹ️ Спуфинг не применен. SIM не российская (ISO: '$SOURCE_ISO')" >> "$LOGFILE"
+    exit 0
+fi
+
+# --- Определяем целевые значения (с учетом сдвига индексов: 1, 2, 3) ---
+case "$SELECTED_CARRIER" in
+    1)
+        TARGET_ALPHA="Latvijas Mobilais"
+        TARGET_NUMERIC="24701"
+        TARGET_ISO="lv"
+        TARGET_NAME="Latvijas Mobilais (Latvia)"
+        ;;
+    2)
+        TARGET_ALPHA="ATT"
+        TARGET_NUMERIC="310094"
+        TARGET_ISO="us"
+        TARGET_NAME="AT&T (USA)"
+        ;;
+    3)
+        TARGET_ALPHA="T-Mobile"
+        TARGET_NUMERIC="310260"
+        TARGET_ISO="us"
+        TARGET_NAME="T-Mobile (USA)"
+        ;;
+esac
+
+# --- Проверяем, что все переменные определены ---
+[ -n "$TARGET_ALPHA" ] || exit 1
+[ -n "$TARGET_NUMERIC" ] || exit 1
+[ -n "$TARGET_ISO" ] || exit 1
 
 # --- Пишем стартовый лог о запуске спуфинга (через >>) ---
 echo "[$(date)] 🇷🇺→🇺🇸 Обнаружена SIM ($SOURCE_ISO). Спуфинг запущен: $TARGET_NAME" >> "$LOGFILE"
@@ -114,5 +119,5 @@ resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
 resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
 # --- Финальная запись в лог (через >>) ---
-echo "[$(date)] ✅ Параметры "$TARGET_ISO" применены." >> "$LOGFILE"
-echo "[$(date)] Оригинал: alpha="$ORIG_ALPHA" numeric=$ORIG_NUMERIC iso=$ORIG_ISO" >> "$LOGFILE"
+echo "[$(date)] ✅ Параметры $TARGET_ISO применены." >> "$LOGFILE"
+echo "[$(date)] Оригинал: alpha=$ORIG_ALPHA numeric=$ORIG_NUMERIC iso=$ORIG_ISO" >> "$LOGFILE"
