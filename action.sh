@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# GPay Spoofer — action.sh (Версия с выводом оригинальных свойств)
+# GPay Spoofer — action.sh (Тестированная POSIX/mksh версия)
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
@@ -37,7 +37,7 @@ if [ -f "$PROPS_FILE" ]; then
 else
     ORIG_NUMERIC="Неизвестно"
     ORIG_ISO="Неизвестно"
-    ORIG_CDMA="Неизвестно"
+    ORIG_CDMA="" # Исправлено: для системных пропсов дефолтом должна быть пустота, а не текст
 fi
 
 if [ "$NEW_CARRIER" -eq 0 ]; then
@@ -67,7 +67,11 @@ if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ] && [ "$TARGET_NUMERIC" != "�
     done
     
     if [ "$NEW_CARRIER" -eq 0 ]; then
-        resetprop "ro.cdma.home.operator.numeric" "$ORIG_CDMA"
+        if [ -n "$ORIG_CDMA" ]; then
+            resetprop "ro.cdma.home.operator.numeric" "$ORIG_CDMA"
+        else
+            resetprop --delete "ro.cdma.home.operator.numeric" 2>/dev/null
+        fi
     else
         resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
     fi
