@@ -1,10 +1,5 @@
-sh
-
 #!/system/bin/sh
-# shellcheck disable=SC2154
-
 CARRIERS_DB="$MODPATH/carriers.db"
-
 if [ ! -f "$CARRIERS_DB" ]; then
     cat << 'EOF' > "$CARRIERS_DB"
 1:24701:lv:Latvia (LMT)
@@ -43,47 +38,66 @@ EOF
 fi
 
 choose_key() {
-    while true; do
-        _event=$(/system/bin/getevent -lqc 1 2>/dev/null)
+    if command -v key_check >/dev/null 2>&1; then
+        key_check
+        return $?
+    fi
+
+    if ! command -v getevent >/dev/null 2>&1; then
+        ui_print "⚠️ getevent не найден! Автовыбор через 3 секунды..."
+        sleep 3
+        return 1
+    fi
+
+    _count=0
+    while [ "$_count" -lt 150 ]; do
+        _event=$(getevent -ql -c 1 2>/dev/null | head -n 1)
+        if [ -z "$_event" ]; then
+            _event=$(getevent -c 1 2>/dev/null | head -n 1)
+        fi
+
         case "$_event" in
-            *KEY_VOLUMEUP*DOWN*) return 0 ;;
-            *KEY_VOLUMEDOWN*DOWN*) return 1 ;;
+            *KEY_VOLUMEUP*DOWN* | *0001*0073*00000001*)
+                return 0
+                ;;
+            *KEY_VOLUMEDOWN*DOWN* | *0001*0072*00000001*)
+                return 1
+                ;;
         esac
+        
+        sleep 0.1
+        _count=$((_count + 1))
     done
+
+    return 1
 }
 
-TOTAL_CARRIERS=$(sed '/^[[:space:]]*$/d' "$CARRIERS_DB" 2>/dev/null | wc -l | tr -d '[:space:]')
+TOTAL_CARRIERS=$(grep -c "^[0-9]" "$CARRIERS_DB" 2>/dev/null || echo "32")
 case "$TOTAL_CARRIERS" in ''|*[!0-9]*) TOTAL_CARRIERS=32 ;; esac
-
 SELECTED_CARRIER=""
 
 ui_print " "
 ui_print "==================================="
-ui_print "       ВЫБОР РЕГИОНА СПУФИНГА      "
+ui_print " [Громкость МИНУС] — Далее"
+ui_print " [Громкость ПЛЮС]  — Выбрать"
+ui_print " (Таймаут автовыбора: 15 секунд)"
 ui_print "==================================="
-ui_print " [Громкость МИНУС] — Следующий пункт"
-ui_print " [Громкость ПЛЮС]  — Подтвердить выбор"
-ui_print "==================================="
-ui_print " "
 
 MENU_INDEX=0
 TOTAL_STATES=$((TOTAL_CARRIERS + 1))
 
 while true; do
     if [ "$MENU_INDEX" -eq 0 ]; then
-        CURRENT_NAME="Оригинальные значения (Без спуфинга)"
+        CURRENT_NAME="Оригинальные значения"
     else
         CURRENT_NAME="Неизвестный профиль"
-        while IFS=":" read -r id _numeric _iso name; do
-            case "$id" in "" | [[:space:]]*) continue ;; esac
-            if [ "$id" -eq "$MENU_INDEX" ]; then
-                CURRENT_NAME="$name"
-                break
-            fi
-        done < "$CARRIERS_DB"
+        _match=$(grep "^${MENU_INDEX}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
+        if [ -n "$_match" ]; then
+            CURRENT_NAME=$(echo "$_match" | cut -d':' -f4)
+        fi
     fi
-
-    ui_print "-> Текущий выбор: $CURRENT_NAME"
+    
+    ui_print "-> Выбор: $CURRENT_NAME"
     
     if choose_key; then
         SELECTED_CARRIER="$MENU_INDEX"
@@ -96,10 +110,4 @@ done
 printf 'selected_carrier=%s\n' "$SELECTED_CARRIER" > "$MODPATH/settings"
 chmod 0600 "$MODPATH/settings" "$CARRIERS_DB"
 chmod 0755 "$MODPATH/service.sh" "$MODPATH/action.sh" 2>/dev/null
-
-ui_print "==================================="
-ui_print "✅ Модуль настроен на профиль [$SELECTED_CARRIER]"
-ui_print "[*] GPay Spoofer успешно установлен!"
-ui_print "==================================="
-
-Используйте код с осторожностью.
+ui_print "✅ Успешно! Выбран профиль [$SELECTED_CARRIER]"

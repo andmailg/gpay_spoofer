@@ -1,8 +1,33 @@
 #!/system/bin/sh
-
 MODDIR="${0%/*}"
 PROPS_FILE="$MODDIR/original_props"
 LOGFILE="$MODDIR/Gpay-Spoofer.log"
+
+_set_prop() {
+    if command -v resetprop >/dev/null 2>&1; then
+        resetprop "$1" "$2"
+    elif [ -x /data/adb/ap/bin/kpcli ]; then
+        /data/adb/ap/bin/kpcli property set "$1" "$2"
+    elif [ -x /data/adb/ksu/bin/kpcli ]; then
+        /data/adb/ksu/bin/kpcli property set "$1" "$2"
+    elif command -v kpcli >/dev/null 2>&1; then
+        kpcli property set "$1" "$2"
+    else
+        setprop "$1" "$2"
+    fi
+}
+
+_del_prop() {
+    if command -v resetprop >/dev/null 2>&1; then
+        resetprop --delete "$1" 2>/dev/null
+    elif [ -x /data/adb/ap/bin/kpcli ]; then
+        /data/adb/ap/bin/kpcli property set "$1" "" 2>/dev/null
+    elif [ -x /data/adb/ksu/bin/kpcli ]; then
+        /data/adb/ksu/bin/kpcli property set "$1" "" 2>/dev/null
+    elif command -v kpcli >/dev/null 2>&1; then
+        kpcli property set "$1" "" 2>/dev/null
+    fi
+}
 
 log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [UNINSTALL] $1" >> "$LOGFILE" 2>/dev/null
@@ -11,30 +36,21 @@ log_msg() {
 restore_prop() {
     _prop="$1"
     _val="$2"
-    if [ -n "$_val" ]; then
-        resetprop "$_prop" "$_val"
-        log_msg "Восстановлен: $_prop = '$_val'"
+    if [ -n "$_val" ] && [ "$_val" != "Неизвестно" ]; then
+        _set_prop "$_prop" "$_val"
     else
-        resetprop --delete "$_prop" 2>/dev/null
-        log_msg "Удалён: $_prop"
+        _del_prop "$_prop"
     fi
 }
 
-log_msg "--- НАЧАЛО ПРОЦЕССА УДАЛЕНИЯ МОДУЛЯ ---"
-
-ORIG_NUMERIC=""
-ORIG_ISO=""
-ORIG_CDMA=""
-
 if [ -f "$PROPS_FILE" ]; then
-    # shellcheck disable=SC1090
-    . "$PROPS_FILE"
-    log_msg "Файл оригинальных свойств успешно прочитан."
+    ORIG_NUMERIC=$(grep '^ORIG_NUMERIC=' "$PROPS_FILE" | cut -d'"' -f2)
+    ORIG_ISO=$(grep '^ORIG_ISO=' "$PROPS_FILE" | cut -d'"' -f2)
+    ORIG_CDMA=$(grep '^ORIG_CDMA=' "$PROPS_FILE" | cut -d'"' -f2)
 else
-    ORIG_NUMERIC="$(getprop gsm.operator.numeric)"
-    ORIG_ISO="$(getprop gsm.operator.iso-country)"
-    ORIG_CDMA="$(getprop ro.cdma.home.operator.numeric)"
-    log_msg "⚠️ Предупреждение: Файл оригинальных свойств не найден! Сняты текущие значения."
+    ORIG_NUMERIC=$(getprop gsm.operator.numeric)
+    ORIG_ISO=$(getprop gsm.operator.iso-country)
+    ORIG_CDMA=$(getprop ro.cdma.home.operator.numeric)
 fi
 
 restore_prop "gsm.operator.numeric" "$ORIG_NUMERIC"
@@ -48,7 +64,4 @@ for suffix in "" ".1" ".2"; do
     restore_prop "gsm.operator.iso-country$suffix" "$ORIG_ISO"
 done
 
-rm -f "$MODDIR/my_card.bin.cache"
-
-log_msg "Uninstall завершен: свойства возвращены к заводским."
-echo "GPay Spoofer удалён. Оригинальные свойства восстановлены."
+rm -f "$MODDIR/settings" "$MODDIR/carriers.db" "$MODDIR/original_props" 2>/dev/null
