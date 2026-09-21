@@ -1,67 +1,42 @@
 #!/system/bin/sh
-# GPay Spoofer — service.sh (Демон применения спуфинга при загрузке)
+# GPay Spoofer — service.sh (Применение спуфинга при загрузке с логированием)
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
 CARRIERS_DB="$MODDIR/carriers.db"
-LOGFILE="$MODDIR/Gpay-Spoofer.log"
-BIN_CACHE="$MODDIR/my_card.bin.cache"
+LOGFILE="/sdcard/Gpay-Spoofer.log"
 
-# --- Ожидание завершения загрузки ---
-timeout=30
+# --- Функция безопасного логирования ---
+# Создает директорию лога, если она доступна, и пишет событие с меткой времени
+log_msg() {
+    # Проверяем, смонтирован ли уже раздел /sdcard
+    if [ -d "/sdcard" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [SERVICE] $1" >> "$LOGFILE" 2>/dev/null
+    fi
+}
+
+# Чтение ранее выбранного профиля
+SELECTED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
+case "$SELECTED_CARRIER" in *[!0-9]*|"") SELECTED_CARRIER=0 ;; esac
+
+# --- Ожидание завершения загрузки системы Android ---
+timeout=20
 while [ "$(getprop sys.boot_completed)" != "1" ]; do
     sleep 2
     timeout=$((timeout - 1))
-    if [ "$timeout" -le 0 ]; then break; fi
+    [ "$timeout" -le 0 ] && break
 done
-sleep 5
 
-# --- Бэкап актуальных свойств при каждом запуске ---
-ORIG_NUMERIC="$(getprop gsm.operator.numeric 2>/dev/null)"
-ORIG_ISO="$(getprop gsm.operator.iso-country 2>/dev/null)"
+# Дополнительное короткое ожидание для гарантированного монтирования /sdcard
+sleep 3
 
-if [ -n "$ORIG_NUMERIC" ] && [ -n "$ORIG_ISO" ]; then
-    cat << EOF > "$MODDIR/original_props"
-ORIG_NUMERIC="$ORIG_NUMERIC"
-ORIG_ISO="$ORIG_ISO"
-EOF
-fi
-
-# --- Определение целевого профиля с учетом кэша BIN ---
-SELECTED_CARRIER=""
-
-if [ -f "$BIN_CACHE" ]; then
-    CACHED_ISO="$(cut -d':' -f2 "$BIN_CACHE" 2>/dev/null)"
-    if [ -n "$CACHED_ISO" ] && [ -f "$CARRIERS_DB" ]; then
-        MATCH_LINE="$(sed -n "/:${CACHED_ISO}:/p" "$CARRIERS_DB" | head -n 1)"
-        if [ -n "$MATCH_LINE" ]; then
-            SELECTED_CARRIER="$(echo "$MATCH_LINE" | cut -d':' -f1)"
-        else
-            SELECTED_CARRIER=1  # Дефолт на Латвию, если ISO карты потерялся в базе
-        fi
-    fi
-fi
-
-# Если кэша карты нет, берем ранее выбранный вручную профиль
-if [ -z "$SELECTED_CARRIER" ]; then
-    SELECTED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
-fi
-
-case "$SELECTED_CARRIER" in *[!0-9]*|"") SELECTED_CARRIER=0 ;; esac
-
+# Проверяем отключенный спуфинг
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Профиль 0. Спуфинг отключен." >> "$LOGFILE" 2>/dev/null
+    log_msg "Профиль 0. Спуфинг отключен, оригинальные свойства сохранены."
     exit 0
 fi
 
-# --- Проверка SIM-карты (пропускаем только РФ) ---
-SOURCE_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null | tr -d ' ' | cut -c1-2 | tr '[:upper:]' '[:lower:]')"
-if [ "$SOURCE_ISO" != "ru" ] && [ -n "$SOURCE_ISO" ]; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Пропущен. SIM имеет ISO: '$SOURCE_ISO'" >> "$LOGFILE" 2>/dev/null
-    exit 0
-fi
-
-# --- Извлечение данных оператора ---
+# Извлечение данных оператора из текстовой базы данных
 TARGET_NUMERIC=""
 TARGET_ISO=""
 TARGET_NAME=""
@@ -75,15 +50,18 @@ if [ -f "$CARRIERS_DB" ]; then
     fi
 fi
 
-[ -z "$TARGET_NUMERIC" ] || [ -z "$TARGET_ISO" ] && exit 1
+# Прерываем работу, если данные для подмены не найдены
+if [ -z "$TARGET_NUMERIC" ] || [ -z "$TARGET_ISO" ]; then
+    log_msg "❌ Ошибка: Не удалось найти данные для профиля [$SELECTED_CARRIER] в carriers.db"
+    exit 1
+fi
 
-# --- Применение подмены ---
+# Применение подмены сотовых свойств через resetprop
 for suffix in "" ".1" ".2"; do
     resetprop "gsm.sim.operator.numeric$suffix" "$TARGET_NUMERIC"
     resetprop "gsm.sim.operator.iso-country$suffix" "$TARGET_ISO"
 done
 resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
 resetprop "gsm.operator.iso-country" "$TARGET_ISO"
-resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Спуфинг успешно активирован: $TARGET_NAME ($TARGET_ISO)" >> "$LOGFILE" 2>/dev/null
+log_msg "✅ Спуфинг успешно активирован: профиль [$SELECTED_CARRIER] $TARGET_NAME ($TARGET_ISO)"
