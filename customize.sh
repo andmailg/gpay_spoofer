@@ -1,3 +1,5 @@
+sh
+
 #!/system/bin/sh
 # shellcheck disable=SC2154
 
@@ -50,13 +52,8 @@ choose_key() {
     done
 }
 
-TOTAL_CARRIERS=0
-while read -r line; do
-    case "$line" in
-        "" | [[:space:]]* | "#"*) continue ;;
-        *) TOTAL_CARRIERS=$((TOTAL_CARRIERS + 1)) ;;
-    esac
-done < "$CARRIERS_DB"
+TOTAL_CARRIERS=$(sed '/^[[:space:]]*$/d' "$CARRIERS_DB" 2>/dev/null | wc -l | tr -d '[:space:]')
+case "$TOTAL_CARRIERS" in ''|*[!0-9]*) TOTAL_CARRIERS=32 ;; esac
 
 SELECTED_CARRIER=""
 
@@ -104,3 +101,5 @@ ui_print "==================================="
 ui_print "✅ Модуль настроен на профиль [$SELECTED_CARRIER]"
 ui_print "[*] GPay Spoofer успешно установлен!"
 ui_print "==================================="
+
+Используйте код с осторожностью.

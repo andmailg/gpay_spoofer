@@ -1,3 +1,5 @@
+sh
+
 #!/system/bin/sh
 
 MODDIR="/data/adb/modules/GPay-Spoofer"
@@ -41,10 +43,12 @@ echo "--------------------------------------------------"
 echo "🔍 Запрос к онлайн-базе для BIN $BIN_8..."
 
 RESPONSE=""
+API_URL="https://data.handyapi.com/bin/$BIN_8"
+
 if command -v curl >/dev/null 2>&1; then
-    RESPONSE="$(curl -fsSL --connect-timeout 5 --max-time 10 "https://handyapi.com" 2>/dev/null)"
+    RESPONSE="$(curl -fsSL --connect-timeout 5 --max-time 10 "$API_URL" 2>/dev/null)"
 elif command -v wget >/dev/null 2>&1; then
-    RESPONSE="$(wget -qO- --timeout=10 "https://data.handyapi.com/bin/$BIN_8" 2>/dev/null)"
+    RESPONSE="$(wget -qO- --timeout=10 "$API_URL" 2>/dev/null)"
 fi
 
 if [ -z "$RESPONSE" ]; then
@@ -53,7 +57,7 @@ if [ -z "$RESPONSE" ]; then
     exit 1
 fi
 
-TARGET_ISO="$(echo "$RESPONSE" | sed -n 's/.*"A2"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | tr '[:upper:]' '[:lower:]')"
+TARGET_ISO="$(echo "$RESPONSE" | tr '}' '\n' | tr ',' '\n' | tr '{' '\n' | sed -n 's/.*"A2"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | tr '[:upper:]' '[:lower:]' | head -n 1)"
 
 if [ -z "$TARGET_ISO" ]; then
     echo "❌ Ошибка: BIN не найден в базе данных или регион не определен."
@@ -63,32 +67,31 @@ fi
 echo "✅ Карта определена! Регион выпуска: $(echo "$TARGET_ISO" | tr '[:lower:]' '[:upper:]')"
 echo "--------------------------------------------------"
 
-NEW_ID=""
-TARGET_NUMERIC=""
-TARGET_NAME=""
-
+FOUND_PROFILE=0
 while IFS=":" read -r id numeric iso name; do
     case "$id" in "" | [[:space:]]*) continue ;; esac
     if [ "$iso" = "$TARGET_ISO" ]; then
         NEW_ID="$id"
         TARGET_NUMERIC="$numeric"
         TARGET_NAME="$name"
+        FOUND_PROFILE=1
         break
     fi
 done < "$CARRIERS_DB"
 
-if [ -n "$NEW_ID" ]; then
+if [ "$FOUND_PROFILE" -eq 1 ]; then
     echo "[*] В модуле найден подходящий профиль: [$NEW_ID] $TARGET_NAME"
 else
     echo "[!] Страны '$TARGET_ISO' нет в вашей базе carriers.db."
     echo "[*] Автоматически назначаю универсальный профиль: Latvia (LMT)"
     NEW_ID=1
     
-    while IFS=":" read -r id numeric iso _name; do
+    while IFS=":" read -r id numeric iso name; do
         case "$id" in "" | [[:space:]]*) continue ;; esac
         if [ "$id" -eq 1 ]; then
             TARGET_NUMERIC="$numeric"
             TARGET_ISO="$iso"
+            TARGET_NAME="$name"
             break
         fi
     done < "$CARRIERS_DB"
@@ -111,5 +114,7 @@ pm trim-caches 999G >/dev/null 2>&1
 
 echo "--------------------------------------------------"
 echo "🚀 Настройки Magisk-модуля успешно обновлены!"
-echo "Применен профиль [$NEW_ID]. Изменения вступили в силу."
+echo "Применен профиль [$NEW_ID] $TARGET_NAME. Изменения вступили в силу."
 echo "=================================================="
+
+Используйте код с осторожностью.
