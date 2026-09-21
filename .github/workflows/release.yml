@@ -17,6 +17,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Run ShellCheck
+        uses: ludei/action-shellcheck@v1
+        with:
+          severity: warning
+          check_together: >-
+            customize.sh
+            service.sh
+            action.sh
+            status.sh
+            uninstall.sh
+            add_carrier.sh
+
       - name: Read version from module.prop
         id: version
         run: |

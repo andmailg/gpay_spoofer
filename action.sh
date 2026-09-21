@@ -11,8 +11,19 @@ BIN_CACHE="$MODDIR/my_card.bin.cache"
 # --- Считаем количество доступных операторов в базе ---
 TOTAL_CARRIERS=0
 if [ -f "$CARRIERS_DB" ]; then
-    TOTAL_CARRIERS="$(sed '/^\s*$/d' "$CARRIERS_DB" | wc -l | tr -d ' ')"
+    # Безопасное POSIX чтение без риска пропустить последнюю строку без переноса
+    sed '/^[[:space:]]*$/d' "$CARRIERS_DB" | while read -r line; do
+        id="$(echo "$line" | cut -d':' -f1)"
+        name="$(echo "$line" | cut -d':' -f4)"
+        [ -z "$id" ] && continue
+        if [ "$id" -eq "$SELECTED_CARRIER" ]; then
+            echo "--> [$id] $name"
+        else
+            echo "    [$id] $name"
+        fi
+    done
 fi
+
 [ -z "$TOTAL_CARRIERS" ] || [ "$TOTAL_CARRIERS" -lt 1 ] && TOTAL_CARRIERS=0
 TOTAL_STATES=$((TOTAL_CARRIERS + 1))
 
@@ -172,10 +183,7 @@ if [ -f "$CARRIERS_DB" ]; then
     done < "$CARRIERS_DB"
 fi
 echo "=================================================="
-echo "🔄 Обновляю конфигурацию системы..."
-
-rm -f "/data/adb/gpay-spoofer.lock"
-sh "$MODDIR/service.sh" >/dev/null 2>&1 &
+echo "Обновляю конфигурацию системы..."
 
 am force-stop com.android.vending >/dev/null 2>&1
 am force-stop com.google.android.apps.walletnfcrel >/dev/null 2>&1

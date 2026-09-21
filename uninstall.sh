@@ -2,8 +2,7 @@
 
 MODDIR="${0%/*}"
 PROPS_FILE="$MODDIR/original_props"
-LOGFILE="/sdcard/Gpay-Spoofer.log"
-LOCKFILE="/data/adb/gpay-spoofer.lock"
+LOGFILE="$MODDIR/Gpay-Spoofer.log"
 
 log_msg() {
     msg="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
@@ -49,7 +48,6 @@ for suffix in "" ".1" ".2"; do
     restore_prop "gsm.sim.operator.iso-country$suffix" "$ORIG_ISO"
 done
 
-rm -f "$LOCKFILE"
 rm -f "$MODDIR/my_card.bin.cache"
 
 log_msg "Uninstall завершен: свойства возвращены."

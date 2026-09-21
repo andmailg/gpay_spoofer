@@ -1,16 +1,13 @@
 #!/system/bin/sh
-# GPay Spoofer — service.sh
+# GPay Spoofer — service.sh (Демон применения спуфинга при загрузке)
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
 CARRIERS_DB="$MODDIR/carriers.db"
 LOGFILE="$MODDIR/Gpay-Spoofer.log"
-LOCKFILE="/data/adb/gpay-spoofer.lock"
 BIN_CACHE="$MODDIR/my_card.bin.cache"
 
-if [ -e "$LOCKFILE" ]; then exit 0; fi
-touch "$LOCKFILE" && trap 'rm -f "$LOCKFILE"' EXIT
-
+# --- Ожидание завершения загрузки ---
 timeout=30
 while [ "$(getprop sys.boot_completed)" != "1" ]; do
     sleep 2
@@ -19,17 +16,15 @@ while [ "$(getprop sys.boot_completed)" != "1" ]; do
 done
 sleep 5
 
-# --- Динамический бэкап оригинальных свойств ---
-if [ ! -f "$MODDIR/original_props" ]; then
-    ORIG_NUMERIC="$(getprop gsm.operator.numeric 2>/dev/null)"
-    ORIG_ISO="$(getprop gsm.operator.iso-country 2>/dev/null)"
-    
-    if [ -n "$ORIG_NUMERIC" ] && [ -n "$ORIG_ISO" ]; then
-        cat << EOF > "$MODDIR/original_props"
+# --- Бэкап актуальных свойств при каждом запуске ---
+ORIG_NUMERIC="$(getprop gsm.operator.numeric 2>/dev/null)"
+ORIG_ISO="$(getprop gsm.operator.iso-country 2>/dev/null)"
+
+if [ -n "$ORIG_NUMERIC" ] && [ -n "$ORIG_ISO" ]; then
+    cat << EOF > "$MODDIR/original_props"
 ORIG_NUMERIC="$ORIG_NUMERIC"
 ORIG_ISO="$ORIG_ISO"
 EOF
-    fi
 fi
 
 # --- Определение целевого профиля с учетом кэша BIN ---
@@ -55,14 +50,14 @@ fi
 case "$SELECTED_CARRIER" in *[!0-9]*|"") SELECTED_CARRIER=0 ;; esac
 
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ℹ️ Профиль 0. Спуфинг отключен." >> "$LOGFILE" 2>/dev/null
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Профиль 0. Спуфинг отключен." >> "$LOGFILE" 2>/dev/null
     exit 0
 fi
 
 # --- Проверка SIM-карты (пропускаем только РФ) ---
 SOURCE_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null | tr -d ' ' | cut -c1-2 | tr '[:upper:]' '[:lower:]')"
 if [ "$SOURCE_ISO" != "ru" ] && [ -n "$SOURCE_ISO" ]; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ℹ️ Пропущен. SIM имеет ISO: '$SOURCE_ISO'" >> "$LOGFILE" 2>/dev/null
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Пропущен. SIM имеет ISO: '$SOURCE_ISO'" >> "$LOGFILE" 2>/dev/null
     exit 0
 fi
 
@@ -91,4 +86,4 @@ resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
 resetprop "gsm.operator.iso-country" "$TARGET_ISO"
 resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ Спуфинг успешно активирован: $TARGET_NAME ($TARGET_ISO)" >> "$LOGFILE" 2>/dev/null
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Спуфинг успешно активирован: $TARGET_NAME ($TARGET_ISO)" >> "$LOGFILE" 2>/dev/null
