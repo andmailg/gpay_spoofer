@@ -117,6 +117,7 @@ TARGET_NAME=""
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
     TARGET_NAME="Оригинальные значения (Сброс)"
     if [ -f "$PROPS_FILE" ]; then
+        # shellcheck disable=SC1090
         . "$PROPS_FILE"
         TARGET_NUMERIC="$ORIG_NUMERIC"
         TARGET_ISO="$ORIG_ISO"
