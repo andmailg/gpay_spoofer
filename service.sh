@@ -88,12 +88,12 @@ case "$SELECTED_CARRIER" in
         ;;
     2)
         TARGET_NUMERIC="310094"
-        TARGET_ISO="🇺🇸"
+        TARGET_ISO="us"
         TARGET_NAME="🇺🇸 AT&T"
         ;;
     3)
         TARGET_NUMERIC="310260"
-        TARGET_ISO="🇺🇸"
+        TARGET_ISO="us"
         TARGET_NAME="🇺🇸 T-Mobile"
         ;;
 esac
@@ -119,5 +119,4 @@ resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
 resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 
 # --- Финальная запись в лог (через >>) ---
-echo "[$(date)] ✅ Параметры "$TARGET_NAME" применены:" >> $LOGFILE
-echo "[$(date)] numeric=$TARGET_NUMERIC iso=$TARGET_ISO" >> $LOGFILE
+echo "[$(date)] ✅ Параметры "$TARGET_NAME" применены: numeric=$TARGET_NUMERIC iso=$TARGET_ISO" >> $LOGFILE

@@ -43,12 +43,12 @@ case "$SELECTED_CARRIER" in
         ;;
     2)
         TARGET_NUMERIC="310094"
-        TARGET_ISO="🇺🇸"
+        TARGET_ISO="us"
         TARGET_NAME="🇺🇸 AT&T"
         ;;
     3)
         TARGET_NUMERIC="310260"
-        TARGET_ISO="🇺🇸"
+        TARGET_ISO="us"
         TARGET_NAME="🇺🇸 T-Mobile"
         ;;
 esac
