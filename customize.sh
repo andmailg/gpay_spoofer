@@ -19,19 +19,18 @@ choose_key() {
 CARRIERS_DB="$MODPATH/carriers.db"
 if [ ! -f "$CARRIERS_DB" ]; then
     cat << 'EOF' > "$CARRIERS_DB"
-1:24701:lv:🇱🇻 Latvijas Mobilais (Latvia)
-2:310094:us:🇺🇸 AT&T (USA)
-3:310260:us:🇺🇸 T-Mobile (USA)
-4:26201:de:🇩🇪 Telekom (Germany)
-5:20801:fr:🇫🇷 Orange (France)
-6:26002:pl:🇵🇱 Polish T-Mobile
-7:24405:fi:🇫🇮 Elisa (Finland)
-8:311480:us:🇺🇸 Verizon (USA)
-9:302720:ca:🇨🇦 Rogers (Canada)
-10:52501:sg:🇸🇬 Singtel (Singapore)
-11:42402:ae:🇦🇪 Etisalat (UAE)
-12:45005:kr:🇰🇷 SK Telecom (South Korea)
-13:40101:kz:🇰🇿 Beeline (Kazakhstan)
+1:24701:lv:Latvia (LMT)
+2:310410:us:USA (AT&T)
+3:26201:de:Germany (Telekom)
+4:20801:fr:France (Orange)
+5:26002:pl:Poland (T-Mobile)
+6:24405:fi:Finland (Elisa)
+7:302720:ca:Canada (Rogers)
+8:52501:sg:Singapore (Singtel)
+9:42402:ae:UAE (Etisalat)
+10:45005:kr:South Korea (SKT)
+11:40101:kz:Kazakhstan (Beeline)
+12:37001:do:Dominican Rep (Orange)
 EOF
 fi
 
@@ -180,6 +179,7 @@ chmod 0600 "$CARRIERS_DB"
 chmod 0755 "$MODPATH/service.sh" 2>/dev/null
 chmod 0755 "$MODPATH/action.sh" 2>/dev/null
 chmod 0755 "$MODPATH/status.sh" 2>/dev/null
+chmod 0755 "$MODPATH/add_carrier.sh" 2>/dev/null
 
 ui_print "==================================="
 ui_print "✅ Модуль настроен на профиль [$SELECTED_CARRIER]"
