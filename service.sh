@@ -6,6 +6,7 @@
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
+CARRIERS_DB="$MODDIR/carriers.db"
 LOGFILE="/sdcard/Gpay-Spoofer.log"
 LOCKFILE="/data/adb/gpay-spoofer.lock"
 
@@ -17,11 +18,10 @@ fi
 touch "$LOCKFILE"
 trap 'rm -f "$LOCKFILE"' EXIT
 
-# --- Проверяем, это старт при загрузке или горячий перезапуск ---
+# --- Проверяем режим старта (загрузка или горячий перезапуск) ---
 IS_BOOTED="$(getprop sys.boot_completed)"
 
 if [ "$IS_BOOTED" != "1" ]; then
-    # Медленный режим: ждем загрузку ОС при включении телефона
     timeout=30
     while [ "$(getprop sys.boot_completed)" != "1" ]; do
         sleep 2
@@ -30,7 +30,6 @@ if [ "$IS_BOOTED" != "1" ]; then
     done
     sleep 10
 else
-    # Быстрый режим: система уже активна, микро-пауза для стабильности
     sleep 1
 fi
 
@@ -49,9 +48,9 @@ fi
 # --- Читаем выбранный профиль ---
 SELECTED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
 
+# Валидация: если не число, сбрасываем на 0
 case "$SELECTED_CARRIER" in
-    0|1|2|3) ;;
-    *) SELECTED_CARRIER=0 ;;
+    *[!0-9]*|"") SELECTED_CARRIER=0 ;;
 esac
 
 # --- Сохраняем оригинальные значения (только если файла еще нет) ---
@@ -59,7 +58,6 @@ if [ ! -f "$MODDIR/original_props" ] || [ "$SELECTED_CARRIER" -eq 0 ]; then
     ORIG_NUMERIC="$(getprop gsm.operator.numeric 2>/dev/null)"
     ORIG_ISO="$(getprop gsm.operator.iso-country 2>/dev/null)"
     
-    # Записываем бэкап, только если свойства не пустые (чтобы не забекапить чужой спуфинг)
     if [ -n "$ORIG_NUMERIC" ] && [ "$SELECTED_CARRIER" -eq 0 ]; then
         cat << EOF > "$MODDIR/original_props"
 ORIG_NUMERIC="$ORIG_NUMERIC"
@@ -83,24 +81,15 @@ if [ "$CHECK_ISO" != "ru" ]; then
     exit 0
 fi
 
-# --- Определяем целевые значения ---
-case "$SELECTED_CARRIER" in
-    1)
-        TARGET_NUMERIC="24701"
-        TARGET_ISO="lv"
-        TARGET_NAME="🇱🇻 Latvijas Mobilais"
-        ;;
-    2)
-        TARGET_NUMERIC="310094"
-        TARGET_ISO="us"
-        TARGET_NAME="🇺🇸 AT&T"
-        ;;
-    3)
-        TARGET_NUMERIC="310260"
-        TARGET_ISO="us"
-        TARGET_NAME="🇺🇸 T-Mobile"
-        ;;
-esac
+# --- Парсинг целевых значений из базы данных carriers.db ---
+if [ -f "$CARRIERS_DB" ]; then
+    LINE="$(sed -n "/^${SELECTED_CARRIER}:/p" "$CARRIERS_DB" | head -n 1)"
+    if [ -n "$LINE" ]; then
+        IFS=":" read -r _ TARGET_NUMERIC TARGET_ISO TARGET_NAME << EOF
+$LINE
+EOF
+    fi
+fi
 
 [ -n "$TARGET_NUMERIC" ] || exit 1
 [ -n "$TARGET_ISO" ] || exit 1

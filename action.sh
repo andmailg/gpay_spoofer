@@ -1,56 +1,68 @@
 #!/system/bin/sh
 
 # ============================================================
-# GPay Spoofer — action.sh
+# GPay Spoofer — action.sh (Динамический)
 # ============================================================
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
 PROPS_FILE="$MODDIR/original_props"
+CARRIERS_DB="$MODDIR/carriers.db"
 LOGFILE="/sdcard/Gpay-Spoofer.log"
+
+# --- Считаем количество доступных операторов в базе ---
+TOTAL_CARRIERS=0
+if [ -f "$CARRIERS_DB" ]; then
+    # Считаем непустые строки
+    TOTAL_CARRIERS="$(sed '/^\s*$/d' "$CARRIERS_DB" | wc -l | tr -d ' ')"
+fi
+
+# Если база пуста или отсутствует, считаем, что доступен только профиль 0
+[ -z "$TOTAL_CARRIERS" ] || [ "$TOTAL_CARRIERS" -lt 1 ] && TOTAL_CARRIERS=0
+
+# Общее количество состояний = операторы + профиль "0" (Оригинал)
+TOTAL_STATES=$((TOTAL_CARRIERS + 1))
 
 # --- Читаем текущий профиль ---
 CURRENT="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
 
 case "$CURRENT" in
-    0|1|2|3) ;;
-    *) CURRENT=0 ;;
+    *[!0-9]*|"") CURRENT=0 ;;
 esac
 
-# Цикл переключения на 4 значения: 0, 1, 2, 3
-SELECTED_CARRIER=$(( (CURRENT + 1) % 4 ))
+# Динамический цикл переключения на основе количества строк в базе
+SELECTED_CARRIER=$(( (CURRENT + 1) % TOTAL_STATES ))
 
 TARGET_NUMERIC=""
 TARGET_ISO=""
+TARGET_NAME=""
 
 # --- Определяем целевые значения ---
-case "$SELECTED_CARRIER" in
-    0)
-        TARGET_NAME="🔄 Оригинальные значения (Сброс)"
-        if [ -f "$PROPS_FILE" ]; then
-            . "$PROPS_FILE"
-            TARGET_NUMERIC="$ORIG_NUMERIC"
-            TARGET_ISO="$ORIG_ISO"
+if [ "$SELECTED_CARRIER" -eq 0 ]; then
+    TARGET_NAME="🔄 Оригинальные значения (Сброс)"
+    if [ -f "$PROPS_FILE" ]; then
+        . "$PROPS_FILE"
+        TARGET_NUMERIC="$ORIG_NUMERIC"
+        TARGET_ISO="$ORIG_ISO"
+    fi
+    [ -z "$TARGET_NUMERIC" ] && TARGET_NUMERIC="$(getprop gsm.operator.numeric)"
+    [ -z "$TARGET_ISO" ] && TARGET_ISO="$(getprop gsm.operator.iso-country)"
+else
+    # Читаем данные из базы
+    if [ -f "$CARRIERS_DB" ]; then
+        LINE="$(sed -n "/^${SELECTED_CARRIER}:/p" "$CARRIERS_DB" | head -n 1)"
+        if [ -n "$LINE" ]; then
+            IFS=":" read -r _ TARGET_NUMERIC TARGET_ISO TARGET_NAME << EOF
+$LINE
+EOF
         fi
-        [ -z "$TARGET_NUMERIC" ] && TARGET_NUMERIC="$(getprop gsm.operator.numeric)"
-        [ -z "$TARGET_ISO" ] && TARGET_ISO="$(getprop gsm.operator.iso-country)"
-        ;;
-    1)
-        TARGET_NUMERIC="24701"
-        TARGET_ISO="lv"
-        TARGET_NAME="🇱🇻 Latvijas Mobilais"
-        ;;
-    2)
-        TARGET_NUMERIC="310094"
-        TARGET_ISO="us"
-        TARGET_NAME="🇺🇸 AT&T"
-        ;;
-    3)
-        TARGET_NUMERIC="310260"
-        TARGET_ISO="us"
-        TARGET_NAME="🇺🇸 T-Mobile"
-        ;;
-esac
+    fi
+fi
+
+if [ -z "$TARGET_NAME" ]; then
+    echo "Ошибка: Не удалось прочитать профиль $SELECTED_CARRIER из базы данных!"
+    exit 1
+fi
 
 # --- Записываем новый профиль в settings ---
 TMPFILE="$SETTINGS.tmp.$$"
@@ -88,10 +100,9 @@ echo "Selected profile: $SELECTED_CARRIER — $TARGET_NAME"
 echo "--------------------------------------------------"
 echo "🔄 Запускаю автоматическое обновление свойств..."
 
-# --- Фоновый запуск service.sh без ожидания (ключевой момент) ---
-# Удаляем lock-файл на случай, если старый процесс завис, и запускаем заново в фоне
+# --- Фоновый запуск service.sh ---
 rm -f "/data/adb/gpay-spoofer.lock"
 sh "$MODDIR/service.sh" >/dev/null 2>&1 &
 
-echo "✅ Готово! Свойства успешно применены "
+echo "✅ Готово! Свойства успешно применены"
 echo "Проверьте лог в /sdcard/Gpay-Spoofer.log"
