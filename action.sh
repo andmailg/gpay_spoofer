@@ -22,11 +22,11 @@ SELECTED_CARRIER=""
 ARGUMENT="$(echo "$1" | tr -d ' ' | tr -d '-')"
 
 # ============================================================
-# РАЗБОР АРГУМЕНТОВ (Если скрипт запущен из Терминала/Termux)
+# РАЗБОР АРГУМЕНТОВ
 # ============================================================
 if [ -n "$ARGUMENT" ]; then
     case "$ARGUMENT" in
-        # Сценарий А: Передан конкретный номер профиля
+        # Сценарий А: Номер профиля
         [0-9]|[0-9][0-9])
             if [ "$ARGUMENT" -lt "$TOTAL_STATES" ]; then
                 SELECTED_CARRIER="$ARGUMENT"
@@ -36,28 +36,28 @@ if [ -n "$ARGUMENT" ]; then
                 exit 1
             fi
             ;;
-        # Сценарий Б: Передан BIN карты (длина 6 и более цифр)
+        # Сценарий Б: BIN карты (длина 6 и более цифр)
         [0-9][0-9][0-9][0-9][0-9][0-9]*)
             BIN_8="$(echo "$ARGUMENT" | cut -c1-8)"
+            BIN_6="$(echo "$BIN_8" | cut -c1-6)"
             echo "=================================================="
             echo "🔍 РЕЖИМ ОДНОКРАТНОГО ОПРЕДЕЛЕНИЯ BIN: $BIN_8"
             echo "=================================================="
             
             TARGET_ISO=""
-            # 1. Локальное правило для вашего BIN
+            # 1. Локальные правила
             case "$BIN_8" in
                 53787211*|537872*) TARGET_ISO="lv" ;;
             esac
             
-            # 2. Онлайн-запрос (данные в файл не сохраняются)
+            # 2. Онлайн-запрос (Исправлен URL API)
             if [ -z "$TARGET_ISO" ]; then
-                echo "[*] Запрашиваю онлайн-базу..."
-                BIN_6="$(echo "$BIN_8" | cut -c1-6)"
-                RESPONSE="$(curl -s "https://handyapi.com" 2>/dev/null)"
+                echo "[*] Запрашиваю онлайн-базу для BIN $BIN_6..."
+                RESPONSE="$(curl -sL --connect-timeout 5 "https://handyapi.com" 2>/dev/null)"
                 TARGET_ISO="$(echo "$RESPONSE" | sed -n 's/.*"CountryCode":\s*"\([^"]*\)".*/\1/p' | tr '[:upper:]' '[:lower:]')"
             fi
             
-            # 3. Ищем соответствие в базе
+            # 3. Поиск в базе
             if [ -n "$TARGET_ISO" ]; then
                 MATCH_LINE="$(sed -n "/:${TARGET_ISO}:/p" "$CARRIERS_DB" | head -n 1)"
                 if [ -n "$MATCH_LINE" ]; then
@@ -74,14 +74,14 @@ if [ -n "$ARGUMENT" ]; then
             fi
             ;;
         *)
-            echo "❌ Ошибка: Неверный аргумент. Передайте номер профиля (например, 4) или BIN (например, 53787211)"
+            echo "❌ Ошибка: Неверный аргумент. Передайте номер профиля или BIN."
             exit 1
             ;;
     esac
 fi
 
 # ============================================================
-# РЕЖИМ ОБЫЧНОГО КЛИКА (Если запущено кнопкой Action из Magisk)
+# РЕЖИМ ОБЫЧНОГО КЛИКА (Action из Magisk)
 # ============================================================
 if [ -z "$SELECTED_CARRIER" ]; then
     CURRENT="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
@@ -91,7 +91,7 @@ if [ -z "$SELECTED_CARRIER" ]; then
     SELECTED_CARRIER=$(( (CURRENT + 1) % TOTAL_STATES ))
 fi
 
-# --- Считываем параметры выбранного оператора ---
+# --- Считываем параметры профиля ---
 TARGET_NUMERIC=""
 TARGET_ISO=""
 TARGET_NAME=""
@@ -121,68 +121,47 @@ if [ -z "$TARGET_NAME" ]; then
     exit 1
 fi
 
-# --- Сохраняем состояние в settings ---
-TMPFILE="$SETTINGS.tmp.$$"
-printf 'selected_carrier=%s\n' "$SELECTED_CARRIER" > "$TMPFILE"
-chmod 0600 "$TMPFILE"
-mv -f "$TMPFILE" "$SETTINGS"
+# --- Сохраняем состояние ---
+echo "selected_carrier=$SELECTED_CARRIER" > "$SETTINGS"
 chmod 0600 "$SETTINGS"
 
-# --- Прописываем значения через resetprop ---
+# --- Прописываем свойства через resetprop ---
 if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ]; then
+    for suffix in "" ".1" ".2"; do
+        resetprop "gsm.sim.operator.numeric$suffix" "$TARGET_NUMERIC"
+        resetprop "gsm.sim.operator.iso-country$suffix" "$TARGET_ISO"
+    done
     resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
     resetprop "gsm.operator.iso-country" "$TARGET_ISO"
-    resetprop "gsm.sim.operator.numeric" "$TARGET_NUMERIC"
-    resetprop "gsm.sim.operator.iso-country" "$TARGET_ISO"
     resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
-
-    resetprop "gsm.sim.operator.numeric.1" "$TARGET_NUMERIC"
-    resetprop "gsm.sim.operator.iso-country.1" "$TARGET_ISO"
-    resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
-    resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 fi
 
-# --- Логируем операцию в файл на SD-карте ---
 if [ -d "/sdcard" ]; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Activated Profile: $SELECTED_CARRIER ($TARGET_NAME) | Target ISO: $TARGET_ISO" >> "$LOGFILE"
-    chmod 0600 "$LOGFILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Activated Profile: $SELECTED_CARRIER ($TARGET_NAME) | ISO: $TARGET_ISO" >> "$LOGFILE"
 fi
 
-# --- Вывод интерфейса (карты профилей) ---
+# --- Вывод интерфейса ---
 echo "=================================================="
 echo "          ТЕКУЩИЙ СТАТУС МОДУЛЯ                   "
 echo "=================================================="
-if [ "$SELECTED_CARRIER" -eq 0 ]; then
-    echo "--> Оригинальные значения (Без спуфинга)"
-else
-    echo "    Оригинальные значения (Без спуфинга)"
-fi
+[ "$SELECTED_CARRIER" -eq 0 ] && echo "--> [0] Оригинальные значения (Без спуфинга)" || echo "    [0] Оригинальные значения (Без спуфинга)"
 
-i=1
-while [ "$i" -le "$TOTAL_CARRIERS" ]; do
-    if [ -f "$CARRIERS_DB" ]; then
-        DB_LINE="$(sed -n "/^${i}:/p" "$CARRIERS_DB" | head -n 1)"
-        if [ -n "$DB_LINE" ]; then
-            IFS=":" read -r _ _ _ DB_NAME << EOF
-$DB_LINE
-EOF
-            if [ "$i" -eq "$SELECTED_CARRIER" ]; then
-                echo "--> [$i] $DB_NAME"
-            else
-                echo "    [$i] $DB_NAME"
-            fi
+if [ -f "$CARRIERS_DB" ]; then
+    while IFS=":" read -r id numeric iso name; do
+        [ -z "$id" ] && continue
+        if [ "$id" -eq "$SELECTED_CARRIER" ]; then
+            echo "--> [$id] $name"
+        else
+            echo "    [$id] $name"
         fi
-    fi
-    i=$((i + 1))
-done
+    done < "$CARRIERS_DB"
+fi
 echo "=================================================="
 echo "🔄 Обновляю конфигурацию системы..."
 
-# --- Фоновый перезапуск service.sh ---
 rm -f "/data/adb/gpay-spoofer.lock"
 sh "$MODDIR/service.sh" >/dev/null 2>&1 &
 
-# --- Форсированная очистка кэша Google ---
 am force-stop com.android.vending >/dev/null 2>&1
 am force-stop com.google.android.apps.walletnfcrel >/dev/null 2>&1
 pm trim-caches 999G >/dev/null 2>&1
@@ -190,5 +169,5 @@ pm trim-caches 999G >/dev/null 2>&1
 echo "=================================================="
 echo "✅ Успешно применен профиль [$SELECTED_CARRIER]"
 echo "Текущий оператор: $TARGET_NAME"
-echo "Кэш очищен. Можете открывать Google Wallet!"
+echo "Можете открывать Google Wallet!"
 echo "=================================================="

@@ -17,66 +17,61 @@ fi
 touch "$LOCKFILE"
 trap 'rm -f "$LOCKFILE"' EXIT
 
-IS_BOOTED="$(getprop sys.boot_completed)"
+# Ожидание загрузки системы
+timeout=30
+while [ "$(getprop sys.boot_completed)" != "1" ]; do
+    sleep 2
+    timeout=$((timeout - 1))
+    if [ "$timeout" -le 0 ]; then break; fi
+done
+sleep 5
 
-if [ "$IS_BOOTED" != "1" ]; then
-    timeout=30
-    while [ "$(getprop sys.boot_completed)" != "1" ]; do
-        sleep 2
-        timeout=$((timeout - 1))
-        if [ "$timeout" -le 0 ]; then break; fi
-    done
-    sleep 10
-else
-    sleep 1
-fi
-
-storage_timeout=30
+# Ожидание доступности хранилища для логов
+storage_timeout=20
 while [ ! -d "/sdcard/Android" ]; do
     sleep 2
     storage_timeout=$((storage_timeout - 1))
     if [ "$storage_timeout" -le 0 ]; then break; fi
 done
 
-if [ -d "/sdcard" ]; then
-    [ ! -f "$LOGFILE" ] && touch "$LOGFILE"
+if [ -d "/sdcard" ] && [ ! -f "$LOGFILE" ]; then
+    touch "$LOGFILE" 2>/dev/null
 fi
 
-# --- Читаем выбранный профиль ---
-SELECTED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
+# --- СОЗДАНИЕ БЭКАПА (Строго один раз при первом старте модуля) ---
+if [ ! -f "$MODDIR/original_props" ]; then
+    ORIG_NUMERIC="$(getprop gsm.operator.numeric 2>/dev/null)"
+    ORIG_ISO="$(getprop gsm.operator.iso-country 2>/dev/null)"
+    
+    # Если система вернула пустые значения во время бута, берем безопасный фоллбэк РФ
+    [ -z "$ORIG_NUMERIC" ] && ORIG_NUMERIC="25001"
+    [ -z "$ORIG_ISO" ] && ORIG_ISO="ru"
 
+    cat << EOF > "$MODDIR/original_props"
+ORIG_NUMERIC="$ORIG_NUMERIC"
+ORIG_ISO="$ORIG_ISO"
+EOF
+fi
+
+# --- Читаем сохраненный профиль ---
+SELECTED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
 case "$SELECTED_CARRIER" in
     *[!0-9]*|"") SELECTED_CARRIER=0 ;;
 esac
 
-# --- Сохраняем оригинальные значения (только если файла еще нет) ---
-if [ ! -f "$MODDIR/original_props" ] || [ "$SELECTED_CARRIER" -eq 0 ]; then
-    ORIG_NUMERIC="$(getprop gsm.operator.numeric 2>/dev/null)"
-    ORIG_ISO="$(getprop gsm.operator.iso-country 2>/dev/null)"
-    
-    if [ -n "$ORIG_NUMERIC" ] && [ "$SELECTED_CARRIER" -eq 0 ]; then
-        cat << EOF > "$MODDIR/original_props"
-ORIG_NUMERIC="$ORIG_NUMERIC"
-ORIG_ISO="$ORIG_ISO"
-EOF
-    fi
-fi
-
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
-    [ -f "$LOGFILE" ] && echo "[$(date '+%Y-%m-%d %H:%M:%S')] ℹ️ Выбран профиль 0 (Оригинал). Спуфинг пропущен." >> "$LOGFILE"
+    [ -f "$LOGFILE" ] && echo "[$(date '+%Y-%m-%d %H:%M:%S')] ℹ️ Профиль 0. Спуфинг отключен." >> "$LOGFILE"
     exit 0
 fi
 
-# --- Проверяем, что SIM — российская ---
-SOURCE_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null)"
-CHECK_ISO="$(echo "$SOURCE_ISO" | tr -d ' ' | tr -d ',' | cut -c1-2 | tr '[:upper:]' '[:lower:]')"
-
-if [ "$CHECK_ISO" != "ru" ]; then
-    [ -f "$LOGFILE" ] && echo "[$(date '+%Y-%m-%d %H:%M:%S')] ℹ️ Спуфинг не применен. SIM не российская (ISO: '$SOURCE_ISO')" >> "$LOGFILE"
+# --- Проверяем, что текущая SIM действительно российская ---
+SOURCE_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null | tr -d ' ' | cut -c1-2 | tr '[:upper:]' '[:lower:]')"
+if [ "$SOURCE_ISO" != "ru" ] && [ -n "$SOURCE_ISO" ]; then
+    [ -f "$LOGFILE" ] && echo "[$(date '+%Y-%m-%d %H:%M:%S')] ℹ️ Пропущен. SIM имеет ISO: '$SOURCE_ISO'" >> "$LOGFILE"
     exit 0
 fi
 
-# --- Парсинг целевых значений из базы данных carriers.db ---
+# --- Получаем таргет-данные оператора ---
 TARGET_NUMERIC=""
 TARGET_ISO=""
 TARGET_NAME=""
@@ -90,21 +85,15 @@ EOF
     fi
 fi
 
-[ -n "$TARGET_NUMERIC" ] || exit 1
-[ -n "$TARGET_ISO" ] || exit 1
+[ -z "$TARGET_NUMERIC" ] || [ -z "$TARGET_ISO" ] && exit 1
 
-[ -f "$LOGFILE" ] && echo "[$(date '+%Y-%m-%d %H:%M:%S')] Обнаружена SIM 🇷🇺 ($SOURCE_ISO). Спуфинг запущен: 🇷🇺→$TARGET_NAME" >> "$LOGFILE"
-
-# --- Подменяем свойства ---
+# --- Применяем подмену ---
+for suffix in "" ".1" ".2"; do
+    resetprop "gsm.sim.operator.numeric$suffix" "$TARGET_NUMERIC"
+    resetprop "gsm.sim.operator.iso-country$suffix" "$TARGET_ISO"
+done
 resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
 resetprop "gsm.operator.iso-country" "$TARGET_ISO"
-resetprop "gsm.sim.operator.numeric" "$TARGET_NUMERIC"
-resetprop "gsm.sim.operator.iso-country" "$TARGET_ISO"
 resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
 
-resetprop "gsm.sim.operator.numeric.1" "$TARGET_NUMERIC"
-resetprop "gsm.sim.operator.iso-country.1" "$TARGET_ISO"
-resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
-resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
-
-[ -f "$LOGFILE" ] && echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ Параметры $TARGET_NAME применены: numeric=$TARGET_NUMERIC iso=$TARGET_ISO" >> "$LOGFILE"
+[ -f "$LOGFILE" ] && echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ Спуфинг успешно активирован: $TARGET_NAME ($TARGET_ISO)" >> "$LOGFILE"
