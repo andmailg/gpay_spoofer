@@ -16,9 +16,18 @@ choose_key() {
 # --- Проверка наличия базы данных в архиве ---
 if [ ! -f "$MODPATH/carriers.db" ]; then
     cat << EOF > "$MODPATH/carriers.db"
-1:24701:lv:LV Latvijas Mobilais
-2:310094:us:US AT&T
-3:310260:us:US T-Mobile
+1:24701:lv:🇱🇻 Latvijas Mobilais
+2:310094:us:🇺🇸 AT&T
+3:310260:us:🇺🇸 T-Mobile
+4:26201:de:🇩🇪 Telekom (Germany)
+5:20801:fr:🇫🇷 Orange (France)
+6:26002:pl:🇵🇱 Polish T-Mobile
+7:24405:fi:🇫🇮 Elisa (Finland)
+8:311480:us:🇺🇸 Verizon (USA)
+9:302720:ca:🇨🇦 Rogers (Canada)
+10:52501:sg:🇸🇬 Singtel (Singapore)
+11:42402:ae:🇦🇪 Etisalat (UAE)
+12:45005:kr:🇰🇷 SK Telecom (South Korea)
 EOF
 fi
 
