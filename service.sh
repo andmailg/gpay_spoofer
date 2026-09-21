@@ -10,7 +10,6 @@ CARRIERS_DB="$MODDIR/carriers.db"
 LOGFILE="/sdcard/Gpay-Spoofer.log"
 LOCKFILE="/data/adb/gpay-spoofer.lock"
 
-# --- Блокировка: не запускать два экземпляра ---
 if [ -e "$LOCKFILE" ]; then
     exit 0
 fi
@@ -18,7 +17,6 @@ fi
 touch "$LOCKFILE"
 trap 'rm -f "$LOCKFILE"' EXIT
 
-# --- Проверяем режим старта (загрузка или горячий перезапуск) ---
 IS_BOOTED="$(getprop sys.boot_completed)"
 
 if [ "$IS_BOOTED" != "1" ]; then
@@ -33,7 +31,6 @@ else
     sleep 1
 fi
 
-# --- Ждем монтирования внутренней памяти ---
 storage_timeout=30
 while [ ! -d "/sdcard/Android" ]; do
     sleep 2
@@ -48,7 +45,6 @@ fi
 # --- Читаем выбранный профиль ---
 SELECTED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
 
-# Валидация: если не число, сбрасываем на 0
 case "$SELECTED_CARRIER" in
     *[!0-9]*|"") SELECTED_CARRIER=0 ;;
 esac
@@ -66,7 +62,6 @@ EOF
     fi
 fi
 
-# --- Если выбран профиль 0 (Оригинал), то спуфинг пропускаем ---
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
     [ -f "$LOGFILE" ] && echo "[$(date '+%Y-%m-%d %H:%M:%S')] ℹ️ Выбран профиль 0 (Оригинал). Спуфинг пропущен." >> "$LOGFILE"
     exit 0
@@ -82,6 +77,10 @@ if [ "$CHECK_ISO" != "ru" ]; then
 fi
 
 # --- Парсинг целевых значений из базы данных carriers.db ---
+TARGET_NUMERIC=""
+TARGET_ISO=""
+TARGET_NAME=""
+
 if [ -f "$CARRIERS_DB" ]; then
     LINE="$(sed -n "/^${SELECTED_CARRIER}:/p" "$CARRIERS_DB" | head -n 1)"
     if [ -n "$LINE" ]; then
