@@ -1,11 +1,10 @@
 #!/system/bin/sh
-# GPay Spoofer — bin_checker.sh (Интерактивный инструмент для Termux без форков процессов)
+# GPay Spoofer — bin_checker.sh (Финальная версия)
 
 MODDIR="/data/adb/modules/GPay-Spoofer"
 SETTINGS="$MODDIR/settings"
 CARRIERS_DB="$MODDIR/carriers.db"
 
-# Проверка прав суперпользователя
 if [ "$(id -u)" -ne 0 ]; then
     echo "❌ Ошибка: Этот скрипт должен запускаться с правами root!"
     echo "Используйте команду: su -c sh bin_checker.sh"
@@ -42,7 +41,7 @@ BIN_8="$(echo "$USER_BIN" | cut -c1-8)"
 echo "--------------------------------------------------"
 echo "🔍 Запрос к онлайн-базе для BIN $BIN_8..."
 
-RESPONSE="$(curl -fsSL --connect-timeout 5 --max-time 10 "https://handyapi.com" 2>/dev/null)"
+RESPONSE="$(curl -fsSL --connect-timeout 5 --max-time 10 "https://data.handyapi.com/bin/$BIN_8" 2>/dev/null)"
 
 if [ -z "$RESPONSE" ]; then
     echo "❌ Ошибка: Не удалось получить ответ от сервера."
@@ -64,7 +63,6 @@ NEW_ID=""
 TARGET_NUMERIC=""
 TARGET_NAME=""
 
-# Высокоэффективный поиск по базе встроенными средствами (0 форков sed/head)
 while IFS=":" read -r id numeric iso name; do
     [ -z "$id" ] && continue
     if [ "$iso" = "$TARGET_ISO" ]; then
@@ -82,7 +80,6 @@ else
     echo "[*] Автоматически назначаю универсальный профиль: Latvia (LMT)"
     NEW_ID=1
     
-    # Извлекаем дефолтные параметры Латвии без внешних утилит
     while IFS=":" read -r id numeric iso name; do
         if [ "$id" -eq 1 ]; then
             TARGET_NUMERIC="$numeric"
@@ -92,19 +89,18 @@ else
     done < "$CARRIERS_DB"
 fi
 
-# --- Автоматическая перезапись файла настроек модуля ---
 echo "selected_carrier=$NEW_ID" > "$SETTINGS"
 chmod 0600 "$SETTINGS"
 
-# --- Мгновенное применение resetprop без перезагрузки смартфона ---
+# Полное мгновенное применение спуфинга (Dual-SIM слоты + CDMA)
 for suffix in "" ".1" ".2"; do
     resetprop "gsm.sim.operator.numeric$suffix" "$TARGET_NUMERIC"
     resetprop "gsm.sim.operator.iso-country$suffix" "$TARGET_ISO"
+    resetprop "gsm.operator.numeric$suffix" "$TARGET_NUMERIC"
+    resetprop "gsm.operator.iso-country$suffix" "$TARGET_ISO"
 done
-resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
-resetprop "gsm.operator.iso-country" "$TARGET_ISO"
+resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
 
-# --- Перезапуск сервисов Google ---
 am force-stop com.android.vending >/dev/null 2>&1
 am force-stop com.google.android.apps.walletnfcrel >/dev/null 2>&1
 pm trim-caches 999G >/dev/null 2>&1

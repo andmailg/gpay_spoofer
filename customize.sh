@@ -1,15 +1,5 @@
 #!/system/bin/sh
-# GPay Spoofer — customize.sh (Инсталлятор с быстрым выбором профиля)
-
-# --- Функция фиксации нажатий кнопок громкости ---
-choose_key() {
-    /system/bin/getevent -lqc 1 -t 1 2>/dev/null | while read -r line; do
-        case "$line" in
-            *KEY_VOLUMEUP*DOWN*) return 0 ;;
-            *KEY_VOLUMEDOWN*DOWN*) return 1 ;;
-        esac
-    done
-}
+# GPay Spoofer — customize.sh (Финальная версия)
 
 CARRIERS_DB="$MODPATH/carriers.db"
 
@@ -51,7 +41,18 @@ if [ ! -f "$CARRIERS_DB" ]; then
 EOF
 fi
 
-# Безопасный подсчет строк встроенными средствами без внешних утилит
+# Исправленная функция фиксации кнопок громкости (игнорирует тачскрин и датчики)
+choose_key() {
+    while true; do
+        _event=$(/system/bin/getevent -lqc 1 2>/dev/null)
+        case "$_event" in
+            *KEY_VOLUMEUP*DOWN*) return 0 ;;
+            *KEY_VOLUMEDOWN*DOWN*) return 1 ;;
+        esac
+    done
+}
+
+# Безопасный подсчет строк без форков утилит
 TOTAL_CARRIERS=0
 while read -r line; do
     case "$line" in
@@ -74,14 +75,11 @@ ui_print " "
 MENU_INDEX=0
 TOTAL_STATES=$((TOTAL_CARRIERS + 1))
 
-# --- Интерактивный цикл выбора (0 форков подпроцессов) ---
 while true; do
     if [ "$MENU_INDEX" -eq 0 ]; then
         CURRENT_NAME="Оригинальные значения (Без спуфинга)"
     else
         CURRENT_NAME="Неизвестный профиль"
-        
-        # Высокоэффективное построчное чтение без sed/head/cut
         while IFS=":" read -r id _numeric _iso name; do
             [ -z "$id" ] && continue
             if [ "$id" -eq "$MENU_INDEX" ]; then
@@ -102,12 +100,15 @@ while true; do
     fi
 done
 
-# Сохранение конфигурации
-printf 'selected_carrier=%s\n' "$SELECTED_CARRIER" > "$MODPATH/settings"
-chmod 0600 "$MODPATH/settings"
-chmod 0600 "$CARRIERS_DB"
+# --- Фиксация ОРИГИНАЛЬНЫХ пропсов при первой установке ---
+PROPS_FILE="$MODPATH/original_props"
+echo "ORIG_NUMERIC=\"$(getprop gsm.operator.numeric)\"" > "$PROPS_FILE"
+echo "ORIG_ISO=\"$(getprop gsm.operator.iso-country)\"" >> "$PROPS_FILE"
+echo "ORIG_CDMA=\"$(getprop ro.cdma.home.operator.numeric)\"" >> "$PROPS_FILE"
 
-# Выставление прав исполнения
+printf 'selected_carrier=%s\n' "$SELECTED_CARRIER" > "$MODPATH/settings"
+chmod 0600 "$MODPATH/settings" "$CARRIERS_DB" "$PROPS_FILE"
+
 chmod 0755 "$MODPATH/service.sh" 2>/dev/null
 chmod 0755 "$MODPATH/action.sh" 2>/dev/null
 
