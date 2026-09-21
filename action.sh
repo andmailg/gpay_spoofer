@@ -166,7 +166,7 @@ echo "--------------------------------------------------"
 [ "$SELECTED_CARRIER" -eq 0 ] && echo "--> Оригинальные значения" || echo "    Оригинальные значения"
 
 if [ -f "$CARRIERS_DB" ]; then
-    while IFS=":" read -r id numeric iso name; do
+    while IFS=":" read -r id _numeric _iso name; do
         [ -z "$id" ] && continue
         [ "$id" -eq "$SELECTED_CARRIER" ] && echo "--> [$id] $name" || echo "    [$id] $name"
     done < "$CARRIERS_DB"

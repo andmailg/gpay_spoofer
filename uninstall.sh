@@ -28,6 +28,7 @@ log_msg "--- НАЧАЛО ПРОЦЕССА УДАЛЕНИЯ МОДУЛЯ ---"
 ORIG_NUMERIC=""
 ORIG_ISO=""
 
+# shellcheck disable=SC1090
 if [ -f "$PROPS_FILE" ]; then
     . "$PROPS_FILE"
     log_msg "Файл оригинальных свойств успешно прочитан."
