@@ -2,8 +2,6 @@
 
 # ============================================================
 # GPay Spoofer — action.sh
-# Вызывается пользователем через действие модуля в Magisk App.
-# Циклически переключает профили (0 = Оригинал, 1-3 = Операторы).
 # ============================================================
 
 MODDIR="${0%/*}"
@@ -22,19 +20,20 @@ esac
 # Цикл переключения на 4 значения: 0, 1, 2, 3
 SELECTED_CARRIER=$(( (CURRENT + 1) % 4 ))
 
+TARGET_NUMERIC=""
+TARGET_ISO=""
 
-# --- Определяем целевые значения (с учетом сдвига индексов: 1, 2, 3) ---
+# --- Определяем целевые значения ---
 case "$SELECTED_CARRIER" in
     0)
         TARGET_NAME="🔄 Оригинальные значения (Сброс)"
         if [ -f "$PROPS_FILE" ]; then
-            # Читаем оригиналы (они сохраняются в файл с префиксом ORIG)
             . "$PROPS_FILE"
-            
-            # Присваиваем ORIG значения переменным TARGET
             TARGET_NUMERIC="$ORIG_NUMERIC"
             TARGET_ISO="$ORIG_ISO"
         fi
+        [ -z "$TARGET_NUMERIC" ] && TARGET_NUMERIC="$(getprop gsm.operator.numeric)"
+        [ -z "$TARGET_ISO" ] && TARGET_ISO="$(getprop gsm.operator.iso-country)"
         ;;
     1)
         TARGET_NUMERIC="24701"
@@ -60,36 +59,39 @@ chmod 0600 "$TMPFILE"
 mv -f "$TMPFILE" "$SETTINGS"
 chmod 0600 "$SETTINGS"
 
+# --- Прописываем значения через resetprop ---
+if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ]; then
+    resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
+    resetprop "gsm.operator.iso-country" "$TARGET_ISO"
+    resetprop "gsm.sim.operator.numeric" "$TARGET_NUMERIC"
+    resetprop "gsm.sim.operator.iso-country" "$TARGET_ISO"
+    resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
 
-# Прописываем значения
-resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
-resetprop "gsm.operator.iso-country" "$TARGET_ISO"
-resetprop "gsm.sim.operator.numeric" "$TARGET_NUMERIC"
-resetprop "gsm.sim.operator.iso-country" "$TARGET_ISO"
-resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
-
-# Сбрасываем мульти-слоты
-resetprop "gsm.sim.operator.numeric.1" "$TARGET_NUMERIC"
-resetprop "gsm.sim.operator.iso-country.1" "$TARGET_ISO"
-resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
-resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
-
-
-
-# --- Логируем текущее состояние ---
-{
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Profile changed: $SELECTED_CARRIER — $TARGET_NAME"
-    echo "Real SIM ISO: $(getprop gsm.sim.operator.iso-country 2>/dev/null)"
-    echo "Real SIM numeric: $(getprop gsm.sim.operator.numeric 2>/dev/null)"
-    echo "Real operator ISO: $(getprop gsm.operator.iso-country 2>/dev/null)"
-    echo "Real operator numeric: $(getprop gsm.operator.numeric 2>/dev/null)"
-} >> $LOGFILE
-
-chmod 0600 "$LOGFILE"
-
-echo "Selected profile: $SELECTED_CARRIER — $TARGET_NAME"
-if [ "$SELECTED_CARRIER" -eq 0 ]; then
-    echo "Оригинальные свойства оператора применены! Перезагрузка не обязательна."
-else
-    echo "Перезапустите service.sh или перезагрузите устройство для применения."
+    resetprop "gsm.sim.operator.numeric.1" "$TARGET_NUMERIC"
+    resetprop "gsm.sim.operator.iso-country.1" "$TARGET_ISO"
+    resetprop "gsm.sim.operator.numeric.2" "$TARGET_NUMERIC"
+    resetprop "gsm.sim.operator.iso-country.2" "$TARGET_ISO"
 fi
+
+# --- Логируем текущее состояние в файл ---
+if [ -d "/sdcard" ]; then
+    {
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Profile changed via Action: $SELECTED_CARRIER — $TARGET_NAME"
+        echo "Real SIM ISO: $(getprop gsm.sim.operator.iso-country 2>/dev/null)"
+        echo "Real operator ISO: $(getprop gsm.operator.iso-country 2>/dev/null)"
+    } >> "$LOGFILE"
+    chmod 0600 "$LOGFILE"
+fi
+
+# --- Вывод интерфейса для Magisk Manager ---
+echo "Selected profile: $SELECTED_CARRIER — $TARGET_NAME"
+echo "--------------------------------------------------"
+echo "🔄 Запускаю автоматическое обновление свойств..."
+
+# --- Фоновый запуск service.sh без ожидания (ключевой момент) ---
+# Удаляем lock-файл на случай, если старый процесс завис, и запускаем заново в фоне
+rm -f "/data/adb/gpay-spoofer.lock"
+sh "$MODDIR/service.sh" >/dev/null 2>&1 &
+
+echo "✅ Готово! Свойства успешно применены "
+echo "Проверьте лог в /sdcard/Gpay-Spoofer.log"
