@@ -21,7 +21,7 @@ jobs:
         uses: ludeeus/action-shellcheck@2.0.0
         with:
            severity: warning
-           additional_files: customize.sh service.sh action.sh status.sh uninstall.sh add_carrier.sh
+           additional_files: customize.sh service.sh action.sh uninstall.sh add_carrier.sh
 
       - name: Read version from module.prop
         id: version
@@ -40,7 +40,7 @@ jobs:
           echo "archive_name=${ARCHIVE_NAME}" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2  # Рекомендуется обновить до v2
+        uses: softprops/action-gh-release@v2
         with:
           name: "GPay-Spoofer v${{ steps.version.outputs.version }}"
           tag_name: "v${{ steps.version.outputs.version }}"

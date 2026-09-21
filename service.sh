@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# GPay Spoofer — service.sh (Применение спуфинга при загрузке с проверкой SIM РФ)
+# GPay Spoofer — service.sh (Применение спуфинга при загрузке)
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
@@ -21,40 +21,36 @@ while [ "$(getprop sys.boot_completed)" != "1" ]; do
     [ "$timeout" -le 0 ] && break
 done
 
-# Дополнительное ожидание для стабилизации радиомодуля и монтирования /sdcard
+# Дополнительное ожидание для монтирования накопителя /sdcard
 sleep 3
 
-# --- Умная проверка региона SIM-карт ---
-# Получаем сырую строку (например: "ru", "ru,ru", "ru,", ",ru")
+# --- Проверка региона SIM-карт через паттерны case (РФ + РБ) ---
 RAW_ISO="$(getprop gsm.sim.operator.iso-country 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]')"
 
-# Если в строке вообще нет "ru", но при этом она не пустая — значит SIM точно иностранная
 case "$RAW_ISO" in
-    *ru*) 
-        # Найдена российская SIM (в любом слоте) — продолжаем работу
+    *ru* | *by*)
+        # Найдена SIM РФ или РБ — продолжаем запуск
         ;;
-    "") 
-        # SIM-карта отсутствует или еще не инициализировалась — 
-        # разрешаем спуфинг на всякий случай (например, для планшетов без SIM)
+    "")
+        # SIM отсутствует (например, планшет) — разрешаем работу по Wi-Fi
         ;;
-    *) 
-        # В строке есть символы, но нет "ru" (например: "kz", "us,") — это иностранная SIM
-        log_msg "Пропущен. Обнаружена иностранная SIM: '$RAW_ISO'. Спуфинг отключен."
+    *)
+        # Обнаружена иностранная SIM-карта (например, kz, de, ge)
+        log_msg "Пропущен. Найдена иностранная SIM в системе: '$RAW_ISO'."
         exit 0
         ;;
 esac
 
-# Чтение ранее выбранного профиля из настроек
+# Чтение ранее выбранного профиля
 SELECTED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
 case "$SELECTED_CARRIER" in *[!0-9]*|"") SELECTED_CARRIER=0 ;; esac
 
-# Если выбран профиль 0, то спуфинг отключен пользователем вручную
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
-    log_msg "Профиль 0. Спуфинг отключен пользователем, оригинальные свойства сохранены."
+    log_msg "Профиль 0. Спуфинг отключен пользователем."
     exit 0
 fi
 
-# Извлечение данных оператора из расширенной текстовой базы данных
+# Извлечение данных из базы
 TARGET_NUMERIC=""
 TARGET_ISO=""
 TARGET_NAME=""
@@ -68,9 +64,8 @@ if [ -f "$CARRIERS_DB" ]; then
     fi
 fi
 
-# Прерываем работу, если данные для подмены не найдены в базе
 if [ -z "$TARGET_NUMERIC" ] || [ -z "$TARGET_ISO" ]; then
-    log_msg "❌ Ошибка: Не удалось найти данные для профиля [$SELECTED_CARRIER] в carriers.db"
+    log_msg "❌ Ошибка: Не нашли профиль [$SELECTED_CARRIER] в carriers.db"
     exit 1
 fi
 
@@ -82,4 +77,4 @@ done
 resetprop "gsm.operator.numeric" "$TARGET_NUMERIC"
 resetprop "gsm.operator.iso-country" "$TARGET_ISO"
 
-log_msg "✅ Спуфинг успешно активирован для РФ SIM: профиль [$SELECTED_CARRIER] $TARGET_NAME ($TARGET_ISO)"
+log_msg "✅ Спуфинг успешно активирован: профиль [$SELECTED_CARRIER] $TARGET_NAME ($TARGET_ISO)"

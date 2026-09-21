@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# GPay Spoofer — action.sh (Циклическое переключение профилей с логированием)
+# GPay Spoofer — action.sh (Циклическое переключение профилей)
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"

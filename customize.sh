@@ -1,8 +1,7 @@
 #!/system/bin/sh
-# GPay Spoofer — customize.sh (Инсталлятор с выбором профиля)
+# GPay Spoofer — customize.sh (Инсталлятор с быстрым выбором профиля)
 
 # --- Функция фиксации нажатий кнопок громкости ---
-# Потоковое чтение ивентов, не зависает и не нагружает процессор в Recovery
 choose_key() {
     /system/bin/getevent -lqc 1 -t 1 2>/dev/null | while read -r line; do
         case "$line" in
@@ -14,7 +13,7 @@ choose_key() {
 
 CARRIERS_DB="$MODPATH/carriers.db"
 
-# Автонаполнение базы данных, если файла почему-то нет в архиве
+# Автонаполнение базы данных, если файла нет в архиве
 if [ ! -f "$CARRIERS_DB" ]; then
     cat << 'EOF' > "$CARRIERS_DB"
 1:24701:lv:Latvia (LMT)
@@ -52,9 +51,14 @@ if [ ! -f "$CARRIERS_DB" ]; then
 EOF
 fi
 
-# Подсчет количества операторов в базе (исключая пустые строки)
-TOTAL_CARRIERS="$(sed '/^[[:space:]]*$/d' "$CARRIERS_DB" 2>/dev/null | wc -l | tr -d '[:space:]')"
-case "$TOTAL_CARRIERS" in ''|*[!0-9]*) TOTAL_CARRIERS=0 ;; esac
+# Безопасный подсчет строк встроенными средствами без внешних утилит
+TOTAL_CARRIERS=0
+while read -r line; do
+    case "$line" in
+        "" | [[:space:]]*) continue ;;
+        *) TOTAL_CARRIERS=$((TOTAL_CARRIERS + 1)) ;;
+    esac
+done < "$CARRIERS_DB"
 
 SELECTED_CARRIER=""
 
@@ -70,14 +74,21 @@ ui_print " "
 MENU_INDEX=0
 TOTAL_STATES=$((TOTAL_CARRIERS + 1))
 
-# Цикл интерактивного меню выбора
+# --- Интерактивный цикл выбора (0 форков подпроцессов) ---
 while true; do
     if [ "$MENU_INDEX" -eq 0 ]; then
         CURRENT_NAME="Оригинальные значения (Без спуфинга)"
     else
-        # Читаем название оператора строго из 4-й колонки соответствующего ID
-        LINE="$(sed -n "/^${MENU_INDEX}:/p" "$CARRIERS_DB" | head -n 1)"
-        [ -n "$LINE" ] && CURRENT_NAME="$(echo "$LINE" | cut -d':' -f4)" || CURRENT_NAME="Неизвестный профиль"
+        CURRENT_NAME="Неизвестный профиль"
+        
+        # Высокоэффективное построчное чтение без sed/head/cut
+        while IFS=":" read -r id _numeric _iso name; do
+            [ -z "$id" ] && continue
+            if [ "$id" -eq "$MENU_INDEX" ]; then
+                CURRENT_NAME="$name"
+                break
+            fi
+        done < "$CARRIERS_DB"
     fi
 
     ui_print "-> Текущий выбор: $CURRENT_NAME"
@@ -96,7 +107,7 @@ printf 'selected_carrier=%s\n' "$SELECTED_CARRIER" > "$MODPATH/settings"
 chmod 0600 "$MODPATH/settings"
 chmod 0600 "$CARRIERS_DB"
 
-# Выставляем права на исполнение остальным скриптам
+# Выставление прав исполнения
 chmod 0755 "$MODPATH/service.sh" 2>/dev/null
 chmod 0755 "$MODPATH/action.sh" 2>/dev/null
 
