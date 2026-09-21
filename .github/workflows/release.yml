@@ -16,25 +16,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Исправленный шаг с рабочим ShellCheck экшеном
-      - name: Run ShellCheck
-        uses: shellcheck-page/github-action@v5
-        with:
-          severity: warning
-          scanned_files: >-
-            customize.sh
-            service.sh
-            action.sh
-            status.sh
-            uninstall.sh
-            add_carrier.sh
-
       # Альтернативный вариант (раскомментируйте, если shellcheck-page не подойдёт)
-      # - name: Run ShellCheck
-      #   uses: ludeeus/action-shellcheck@master
-      #   with:
-      #     severity: warning
-      #     additional_files: customize.sh service.sh action.sh status.sh uninstall.sh add_carrier.sh
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+           severity: warning
+           additional_files: customize.sh service.sh action.sh status.sh uninstall.sh add_carrier.sh
 
       - name: Read version from module.prop
         id: version
