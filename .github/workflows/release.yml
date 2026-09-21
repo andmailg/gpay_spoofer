@@ -18,7 +18,7 @@ jobs:
 
       # Альтернативный вариант (раскомментируйте, если shellcheck-page не подойдёт)
       - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@master
+        uses: ludeeus/action-shellcheck@2.0.0
         with:
            severity: warning
            additional_files: customize.sh service.sh action.sh status.sh uninstall.sh add_carrier.sh
