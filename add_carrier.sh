@@ -18,7 +18,7 @@ INPUT_ISO="$(echo "$2" | tr -d ' ' | tr '[:upper:]' '[:lower:]')"
 INPUT_NAME="$3"
 
 if [ ! -f "$CARRIERS_DB" ]; then
-    echo "❌ Ошибка: Файл базы данных '$CARRIers_DB' не найден!"
+    echo "❌ Ошибка: Файл базы данных '$CARRIERS_DB' не найден!"
     exit 1
 fi
 
