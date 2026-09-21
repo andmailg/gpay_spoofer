@@ -1,10 +1,11 @@
 #!/system/bin/sh
-# GPay Spoofer — service.sh (Финальная версия)
+# GPay Spoofer — service.sh (Динамическая версия)
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
 CARRIERS_DB="$MODDIR/carriers.db"
 LOGFILE="$MODDIR/Gpay-Spoofer.log"
+PROPS_FILE="$MODDIR/original_props"
 
 log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [SERVICE] $1" >> "$LOGFILE" 2>/dev/null
@@ -34,7 +35,26 @@ case "$RAW_ISO" in
         ;;
 esac
 
-# Чтение выбранного профиля
+# --- Динамический бэкап чистых свойств (Выполняется строго до подмены) ---
+CURRENT_SYSTEM_NUMERIC="$(getprop gsm.operator.numeric)"
+CURRENT_SYSTEM_ISO="$(getprop gsm.sim.operator.iso-country)"
+CURRENT_SYSTEM_CDMA="$(getprop ro.cdma.home.operator.numeric)"
+
+if [ -n "$CURRENT_SYSTEM_NUMERIC" ] && [ -n "$CURRENT_SYSTEM_ISO" ]; then
+    LAST_SAVED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
+    case "$LAST_SAVED_CARRIER" in *[!0-9]*|"") LAST_SAVED_CARRIER=0 ;; esac
+    
+    # Обновляем оригинал, только если спуфинг спал ИЛИ файла бэкапа физически еще нет
+    if [ "$LAST_SAVED_CARRIER" -eq 0 ] || [ ! -f "$PROPS_FILE" ]; then
+        echo "ORIG_NUMERIC=\"$CURRENT_SYSTEM_NUMERIC\"" > "$PROPS_FILE"
+        echo "ORIG_ISO=\"$CURRENT_SYSTEM_ISO\"" >> "$PROPS_FILE"
+        echo "ORIG_CDMA=\"$CURRENT_SYSTEM_CDMA\"" >> "$PROPS_FILE"
+        chmod 0600 "$PROPS_FILE"
+        log_msg "🔄 Свойства SIM изменились или обновлены. Бэкап актуализирован."
+    fi
+fi
+
+# Чтение текущего выбора профиля
 SELECTED_CARRIER="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
 case "$SELECTED_CARRIER" in *[!0-9]*|"") SELECTED_CARRIER=0 ;; esac
 

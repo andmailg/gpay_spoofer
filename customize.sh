@@ -1,5 +1,6 @@
 #!/system/bin/sh
-# GPay Spoofer — customize.sh (Финальная версия)
+# GPay Spoofer — customize.sh (Динамическая версия)
+# shellcheck disable=SC2154
 
 CARRIERS_DB="$MODPATH/carriers.db"
 
@@ -41,7 +42,7 @@ if [ ! -f "$CARRIERS_DB" ]; then
 EOF
 fi
 
-# Исправленная функция фиксации кнопок громкости (игнорирует тачскрин и датчики)
+# Функция фиксации кнопок громкости
 choose_key() {
     while true; do
         _event=$(/system/bin/getevent -lqc 1 2>/dev/null)
@@ -52,7 +53,7 @@ choose_key() {
     done
 }
 
-# Безопасный подсчет строк без форков утилит
+# Подсчет строк операторов
 TOTAL_CARRIERS=0
 while read -r line; do
     case "$line" in
@@ -100,14 +101,8 @@ while true; do
     fi
 done
 
-# --- Фиксация ОРИГИНАЛЬНЫХ пропсов при первой установке ---
-PROPS_FILE="$MODPATH/original_props"
-echo "ORIG_NUMERIC=\"$(getprop gsm.operator.numeric)\"" > "$PROPS_FILE"
-echo "ORIG_ISO=\"$(getprop gsm.operator.iso-country)\"" >> "$PROPS_FILE"
-echo "ORIG_CDMA=\"$(getprop ro.cdma.home.operator.numeric)\"" >> "$PROPS_FILE"
-
 printf 'selected_carrier=%s\n' "$SELECTED_CARRIER" > "$MODPATH/settings"
-chmod 0600 "$MODPATH/settings" "$CARRIERS_DB" "$PROPS_FILE"
+chmod 0600 "$MODPATH/settings" "$CARRIERS_DB"
 
 chmod 0755 "$MODPATH/service.sh" 2>/dev/null
 chmod 0755 "$MODPATH/action.sh" 2>/dev/null
