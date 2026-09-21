@@ -1,10 +1,8 @@
 #!/system/bin/sh
-# GPay Spoofer — customize.sh (Динамическая версия)
 # shellcheck disable=SC2154
 
 CARRIERS_DB="$MODPATH/carriers.db"
 
-# Автонаполнение базы данных, если файла нет в архиве
 if [ ! -f "$CARRIERS_DB" ]; then
     cat << 'EOF' > "$CARRIERS_DB"
 1:24701:lv:Latvia (LMT)
@@ -42,7 +40,6 @@ if [ ! -f "$CARRIERS_DB" ]; then
 EOF
 fi
 
-# Функция фиксации кнопок громкости
 choose_key() {
     while true; do
         _event=$(/system/bin/getevent -lqc 1 2>/dev/null)
@@ -53,11 +50,10 @@ choose_key() {
     done
 }
 
-# Подсчет строк операторов
 TOTAL_CARRIERS=0
 while read -r line; do
     case "$line" in
-        "" | [[:space:]]*) continue ;;
+        "" | [[:space:]]* | "#"*) continue ;;
         *) TOTAL_CARRIERS=$((TOTAL_CARRIERS + 1)) ;;
     esac
 done < "$CARRIERS_DB"
@@ -82,7 +78,7 @@ while true; do
     else
         CURRENT_NAME="Неизвестный профиль"
         while IFS=":" read -r id _numeric _iso name; do
-            [ -z "$id" ] && continue
+            case "$id" in "" | [[:space:]]*) continue ;; esac
             if [ "$id" -eq "$MENU_INDEX" ]; then
                 CURRENT_NAME="$name"
                 break
@@ -92,8 +88,7 @@ while true; do
 
     ui_print "-> Текущий выбор: $CURRENT_NAME"
     
-    choose_key
-    if [ $? -eq 0 ]; then
+    if choose_key; then
         SELECTED_CARRIER="$MENU_INDEX"
         break
     else
@@ -103,9 +98,7 @@ done
 
 printf 'selected_carrier=%s\n' "$SELECTED_CARRIER" > "$MODPATH/settings"
 chmod 0600 "$MODPATH/settings" "$CARRIERS_DB"
-
-chmod 0755 "$MODPATH/service.sh" 2>/dev/null
-chmod 0755 "$MODPATH/action.sh" 2>/dev/null
+chmod 0755 "$MODPATH/service.sh" "$MODPATH/action.sh" 2>/dev/null
 
 ui_print "==================================="
 ui_print "✅ Модуль настроен на профиль [$SELECTED_CARRIER]"

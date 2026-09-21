@@ -1,5 +1,4 @@
 #!/system/bin/sh
-# GPay Spoofer — uninstall.sh (Финальная версия)
 
 MODDIR="${0%/*}"
 PROPS_FILE="$MODDIR/original_props"
@@ -38,12 +37,10 @@ else
     log_msg "⚠️ Предупреждение: Файл оригинальных свойств не найден! Сняты текущие значения."
 fi
 
-# Восстановление CDMA-свойств и базовых значений
 restore_prop "gsm.operator.numeric" "$ORIG_NUMERIC"
 restore_prop "gsm.operator.iso-country" "$ORIG_ISO"
 restore_prop "ro.cdma.home.operator.numeric" "$ORIG_CDMA"
 
-# Восстановление мультисимовых слотов списком
 for suffix in "" ".1" ".2"; do
     restore_prop "gsm.sim.operator.numeric$suffix" "$ORIG_NUMERIC"
     restore_prop "gsm.sim.operator.iso-country$suffix" "$ORIG_ISO"

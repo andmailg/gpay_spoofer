@@ -1,5 +1,4 @@
 #!/system/bin/sh
-# GPay Spoofer — add_carrier.sh (Финальная версия)
 
 MODDIR="${0%/*}"
 CARRIERS_DB="$MODDIR/carriers.db"
@@ -19,7 +18,7 @@ INPUT_ISO="$(echo "$2" | tr -d ' ' | tr '[:upper:]' '[:lower:]')"
 INPUT_NAME="$3"
 
 if [ ! -f "$CARRIERS_DB" ]; then
-    echo "❌ Ошибка: Файл базы данных '$CARRIERS_DB' не найден!"
+    echo "❌ Ошибка: Файл базы данных '$CARRIers_DB' не найден!"
     exit 1
 fi
 
@@ -30,20 +29,28 @@ case "$INPUT_NUMERIC" in
         ;;
 esac
 
-if ! echo "$INPUT_ISO" | grep -Eq '^[a-z]{2}$'; then
-    echo "❌ Ошибка: ISO код страны должен состоять из 2 букв латиницы."
-    exit 1
-fi
+case "$INPUT_ISO" in
+    [a-z][a-z]) ;;
+    *)
+        echo "❌ Ошибка: ISO код страны должен состоять строго из 2 букв латиницы."
+        exit 1
+        ;;
+esac
 
 if grep -q ":${INPUT_NUMERIC}:" "$CARRIERS_DB"; then
     echo "⚠️ Предупреждение: Оператор с кодом $INPUT_NUMERIC уже есть в базе!"
     exit 1
 fi
 
-LAST_ID=$(cut -d':' -f1 "$CARRIERS_DB" 2>/dev/null | sort -n | tail -n 1)
-case "$LAST_ID" in ''|*[!0-9]*) LAST_ID=0 ;; esac
-NEW_ID=$((LAST_ID + 1))
+LAST_ID=0
+while IFS=":" read -r id _junk; do
+    case "$id" in
+        "" | *[!0-9]*) continue ;;
+        *) [ "$id" -gt "$LAST_ID" ] && LAST_ID="$id" ;;
+    esac
+done < "$CARRIERS_DB"
 
+NEW_ID=$((LAST_ID + 1))
 NEW_LINE="${NEW_ID}:${INPUT_NUMERIC}:${INPUT_ISO}:${INPUT_NAME}"
 
 TMP_DB="$CARRIERS_DB.tmp"

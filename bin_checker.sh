@@ -1,5 +1,4 @@
 #!/system/bin/sh
-# GPay Spoofer — bin_checker.sh (Финальная версия)
 
 MODDIR="/data/adb/modules/GPay-Spoofer"
 SETTINGS="$MODDIR/settings"
@@ -16,7 +15,7 @@ if [ ! -f "$CARRIERS_DB" ]; then
     exit 1
 fi
 
-clear
+clear 2>/dev/null || printf "\033[H\033[J"
 echo "=================================================="
 echo "      GPAY SPOOFER — УМНАЯ НАСТРОЙКА ПО BIN       "
 echo "=================================================="
@@ -41,11 +40,16 @@ BIN_8="$(echo "$USER_BIN" | cut -c1-8)"
 echo "--------------------------------------------------"
 echo "🔍 Запрос к онлайн-базе для BIN $BIN_8..."
 
-RESPONSE="$(curl -fsSL --connect-timeout 5 --max-time 10 "https://data.handyapi.com/bin/$BIN_8" 2>/dev/null)"
+RESPONSE=""
+if command -v curl >/dev/null 2>&1; then
+    RESPONSE="$(curl -fsSL --connect-timeout 5 --max-time 10 "https://handyapi.com" 2>/dev/null)"
+elif command -v wget >/dev/null 2>&1; then
+    RESPONSE="$(wget -qO- --timeout=10 "https://data.handyapi.com/bin/$BIN_8" 2>/dev/null)"
+fi
 
 if [ -z "$RESPONSE" ]; then
     echo "❌ Ошибка: Не удалось получить ответ от сервера."
-    echo "Проверьте подключение к интернету в Termux."
+    echo "Проверьте подключение к интернету."
     exit 1
 fi
 
@@ -64,7 +68,7 @@ TARGET_NUMERIC=""
 TARGET_NAME=""
 
 while IFS=":" read -r id numeric iso name; do
-    [ -z "$id" ] && continue
+    case "$id" in "" | [[:space:]]*) continue ;; esac
     if [ "$iso" = "$TARGET_ISO" ]; then
         NEW_ID="$id"
         TARGET_NUMERIC="$numeric"
@@ -80,7 +84,8 @@ else
     echo "[*] Автоматически назначаю универсальный профиль: Latvia (LMT)"
     NEW_ID=1
     
-    while IFS=":" read -r id numeric iso name; do
+    while IFS=":" read -r id numeric iso _name; do
+        case "$id" in "" | [[:space:]]*) continue ;; esac
         if [ "$id" -eq 1 ]; then
             TARGET_NUMERIC="$numeric"
             TARGET_ISO="$iso"
@@ -92,7 +97,6 @@ fi
 echo "selected_carrier=$NEW_ID" > "$SETTINGS"
 chmod 0600 "$SETTINGS"
 
-# Полное мгновенное применение спуфинга (Dual-SIM слоты + CDMA)
 for suffix in "" ".1" ".2"; do
     resetprop "gsm.sim.operator.numeric$suffix" "$TARGET_NUMERIC"
     resetprop "gsm.sim.operator.iso-country$suffix" "$TARGET_ISO"

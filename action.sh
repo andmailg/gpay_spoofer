@@ -1,5 +1,4 @@
 #!/system/bin/sh
-# GPay Spoofer — action.sh (Тестированная POSIX/mksh версия)
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
@@ -30,14 +29,13 @@ TARGET_NUMERIC=""
 TARGET_ISO=""
 TARGET_NAME=""
 
-# Читаем оригинальные свойства для вывода в консоль
-# shellcheck disable=SC1090
 if [ -f "$PROPS_FILE" ]; then
+    # shellcheck disable=SC1090
     . "$PROPS_FILE"
 else
     ORIG_NUMERIC="Неизвестно"
     ORIG_ISO="Неизвестно"
-    ORIG_CDMA="" # Исправлено: для системных пропсов дефолтом должна быть пустота, а не текст
+    ORIG_CDMA=""
 fi
 
 if [ "$NEW_CARRIER" -eq 0 ]; then
@@ -47,6 +45,7 @@ if [ "$NEW_CARRIER" -eq 0 ]; then
 else
     if [ -f "$CARRIERS_DB" ]; then
         while IFS=":" read -r id numeric iso name; do
+            case "$id" in "" | [[:space:]]*) continue ;; esac
             if [ "$id" = "$NEW_CARRIER" ]; then
                 TARGET_NUMERIC="$numeric"
                 TARGET_ISO="$iso"
@@ -57,7 +56,6 @@ else
     fi
 fi
 
-# Мгновенное применение новых пропсов (Dual-SIM + CDMA)
 if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ] && [ "$TARGET_NUMERIC" != "Неизвестно" ]; then
     for suffix in "" ".1" ".2"; do
         resetprop "gsm.sim.operator.numeric$suffix" "$TARGET_NUMERIC"
@@ -77,7 +75,6 @@ if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ] && [ "$TARGET_NUMERIC" != "�
     fi
 fi
 
-# Уведомление в консоль менеджера Magisk/KernelSU
 echo "=================================================="
 echo "          GPAY SPOOFER CONFIGURATOR               "
 echo "=================================================="
