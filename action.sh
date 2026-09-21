@@ -11,20 +11,9 @@ BIN_CACHE="$MODDIR/my_card.bin.cache"
 # --- Считаем количество доступных операторов в базе ---
 TOTAL_CARRIERS=0
 if [ -f "$CARRIERS_DB" ]; then
-    # Безопасное POSIX чтение без риска пропустить последнюю строку без переноса
-    sed '/^[[:space:]]*$/d' "$CARRIERS_DB" | while read -r line; do
-        id="$(echo "$line" | cut -d':' -f1)"
-        name="$(echo "$line" | cut -d':' -f4)"
-        [ -z "$id" ] && continue
-        if [ "$id" -eq "$SELECTED_CARRIER" ]; then
-            echo "--> [$id] $name"
-        else
-            echo "    [$id] $name"
-        fi
-    done
+    TOTAL_CARRIERS=$(sed '/^[[:space:]]*$/d' "$CARRIERS_DB" 2>/dev/null | wc -l | tr -d '[:space:]')
 fi
-
-[ -z "$TOTAL_CARRIERS" ] || [ "$TOTAL_CARRIERS" -lt 1 ] && TOTAL_CARRIERS=0
+case "$TOTAL_CARRIERS" in ''|*[!0-9]*) TOTAL_CARRIERS=0 ;; esac
 TOTAL_STATES=$((TOTAL_CARRIERS + 1))
 
 SELECTED_CARRIER=""
