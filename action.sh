@@ -22,11 +22,11 @@ SELECTED_CARRIER=""
 ARGUMENT="$(echo "$1" | tr -d ' ' | tr -d '-')"
 
 # ============================================================
-# РАЗБОР АРГУМЕНТОВ
+# РАЗБОР АРГУМЕНТОВ (Запуск из Терминала / Termux)
 # ============================================================
 if [ -n "$ARGUMENT" ]; then
     case "$ARGUMENT" in
-        # Сценарий А: Номер профиля
+        # Сценарий А: Передан конкретный номер профиля
         [0-9]|[0-9][0-9])
             if [ "$ARGUMENT" -lt "$TOTAL_STATES" ]; then
                 SELECTED_CARRIER="$ARGUMENT"
@@ -36,28 +36,45 @@ if [ -n "$ARGUMENT" ]; then
                 exit 1
             fi
             ;;
-        # Сценарий Б: BIN карты (длина 6 и более цифр)
+        # Сценарий Б: Передан BIN карты (длина 6 и более цифр)
         [0-9][0-9][0-9][0-9][0-9][0-9]*)
             BIN_8="$(echo "$ARGUMENT" | cut -c1-8)"
-            BIN_6="$(echo "$BIN_8" | cut -c1-6)"
             echo "=================================================="
             echo "🔍 РЕЖИМ ОДНОКРАТНОГО ОПРЕДЕЛЕНИЯ BIN: $BIN_8"
             echo "=================================================="
             
             TARGET_ISO=""
-            # 1. Локальные правила
+            # 1. Локальные правила (для быстрого ответа без интернета)
             case "$BIN_8" in
-                53787211*|537872*) TARGET_ISO="lv" ;;
+                53787211*) TARGET_ISO="kz" ;; # Карты Bybit (Казахстан)
+                537872*)   TARGET_ISO="us" ;; # Старый макро-BIN Interaudi Bank (США)
             esac
             
-            # 2. Онлайн-запрос (Исправлен URL API)
+            # 2. Онлайн-запрос (Используем ://handyapi.com с поддержкой до 8 цифр)
             if [ -z "$TARGET_ISO" ]; then
-                echo "[*] Запрашиваю онлайн-базу для BIN $BIN_6..."
-                RESPONSE="$(curl -sL --connect-timeout 5 "https://handyapi.com" 2>/dev/null)"
-                TARGET_ISO="$(echo "$RESPONSE" | sed -n 's/.*"CountryCode":\s*"\([^"]*\)".*/\1/p' | tr '[:upper:]' '[:lower:]')"
+                echo "[*] Запрашиваю онлайн-базу для BIN $BIN_8..."
+
+                RESPONSE="$(
+                    curl -fsSL \
+                        --connect-timeout 5 \
+                        --max-time 10 \
+                        "https://data.handyapi.com/bin/$BIN_8" \
+                        2>/dev/null
+                )"
+
+                TARGET_ISO="$(
+                    echo "$RESPONSE" |
+                    sed -n 's/.*"A2"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' |
+                    tr '[:upper:]' '[:lower:]'
+                )"
+
+                if [ -z "$TARGET_ISO" ]; then
+                    echo "[!] Не удалось получить код страны из ответа API"
+                    echo "[!] Ответ: $RESPONSE"
+                fi
             fi
             
-            # 3. Поиск в базе
+            # 3. Ищем соответствие в базе данных операторов
             if [ -n "$TARGET_ISO" ]; then
                 MATCH_LINE="$(sed -n "/:${TARGET_ISO}:/p" "$CARRIERS_DB" | head -n 1)"
                 if [ -n "$MATCH_LINE" ]; then
@@ -74,14 +91,14 @@ if [ -n "$ARGUMENT" ]; then
             fi
             ;;
         *)
-            echo "❌ Ошибка: Неверный аргумент. Передайте номер профиля или BIN."
+            echo "❌ Ошибка: Неверный аргумент. Передайте номер профиля (например, 4) или BIN (например, 53787211)"
             exit 1
             ;;
     esac
 fi
 
 # ============================================================
-# РЕЖИМ ОБЫЧНОГО КЛИКА (Action из Magisk)
+# РЕЖИМ ОБЫЧНОГО КЛИКА (Кнопка Action в менеджере Magisk)
 # ============================================================
 if [ -z "$SELECTED_CARRIER" ]; then
     CURRENT="$(sed -n 's/^selected_carrier=//p' "$SETTINGS" 2>/dev/null | head -n 1)"
@@ -91,7 +108,7 @@ if [ -z "$SELECTED_CARRIER" ]; then
     SELECTED_CARRIER=$(( (CURRENT + 1) % TOTAL_STATES ))
 fi
 
-# --- Считываем параметры профиля ---
+# --- Считываем параметры выбранного оператора ---
 TARGET_NUMERIC=""
 TARGET_ISO=""
 TARGET_NAME=""
@@ -121,11 +138,11 @@ if [ -z "$TARGET_NAME" ]; then
     exit 1
 fi
 
-# --- Сохраняем состояние ---
+# --- Сохраняем состояние в settings ---
 echo "selected_carrier=$SELECTED_CARRIER" > "$SETTINGS"
 chmod 0600 "$SETTINGS"
 
-# --- Прописываем свойства через resetprop ---
+# --- Прописываем значения через resetprop ---
 if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ]; then
     for suffix in "" ".1" ".2"; do
         resetprop "gsm.sim.operator.numeric$suffix" "$TARGET_NUMERIC"
@@ -136,15 +153,16 @@ if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ]; then
     resetprop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
 fi
 
+# --- Логируем операцию ---
 if [ -d "/sdcard" ]; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Activated Profile: $SELECTED_CARRIER ($TARGET_NAME) | ISO: $TARGET_ISO" >> "$LOGFILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Activated Profile: $SELECTED_CARRIER ($TARGET_NAME) | Target ISO: $TARGET_ISO" >> "$LOGFILE" 2>/dev/null
 fi
 
-# --- Вывод интерфейса ---
+# --- Вывод интерфейса (Карта доступных профилей) ---
 echo "=================================================="
 echo "          ТЕКУЩИЙ СТАТУС МОДУЛЯ                   "
 echo "=================================================="
-[ "$SELECTED_CARRIER" -eq 0 ] && echo "--> [0] Оригинальные значения (Без спуфинга)" || echo "    [0] Оригинальные значения (Без спуфинга)"
+[ "$SELECTED_CARRIER" -eq 0 ] && echo "--> Оригинальные значения (Без спуфинга)" || echo "    Оригинальные значения (Без спуфинга)"
 
 if [ -f "$CARRIERS_DB" ]; then
     while IFS=":" read -r id numeric iso name; do
@@ -159,9 +177,11 @@ fi
 echo "=================================================="
 echo "🔄 Обновляю конфигурацию системы..."
 
+# --- Фоновый перезапуск service.sh ---
 rm -f "/data/adb/gpay-spoofer.lock"
 sh "$MODDIR/service.sh" >/dev/null 2>&1 &
 
+# --- Форсированная очистка кэша Google ---
 am force-stop com.android.vending >/dev/null 2>&1
 am force-stop com.google.android.apps.walletnfcrel >/dev/null 2>&1
 pm trim-caches 999G >/dev/null 2>&1
@@ -169,5 +189,5 @@ pm trim-caches 999G >/dev/null 2>&1
 echo "=================================================="
 echo "✅ Успешно применен профиль [$SELECTED_CARRIER]"
 echo "Текущий оператор: $TARGET_NAME"
-echo "Можете открывать Google Wallet!"
+echo "Кэш очищен. Можете открывать Google Wallet!"
 echo "=================================================="
