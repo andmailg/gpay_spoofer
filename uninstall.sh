@@ -28,6 +28,7 @@ ORIG_ISO=""
 ORIG_CDMA=""
 
 if [ -f "$PROPS_FILE" ]; then
+    # shellcheck disable=SC1090
     . "$PROPS_FILE"
     log_msg "Файл оригинальных свойств успешно прочитан."
 else
