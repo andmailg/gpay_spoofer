@@ -168,10 +168,9 @@ chmod 0600 "$SETTINGS"
 # ПРИМЕНЕНИЕ И ПЕРЕЗАПУСК Google
 # =========================================================================
 if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ]; then
-    _set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC},${TARGET_NUMERIC}"
-    _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO},${TARGET_ISO}"
-    _set_prop "gsm.operator.numeric" "${TARGET_NUMERIC},${TARGET_NUMERIC}"
-    _set_prop "gsm.operator.iso-country" "${TARGET_ISO},${TARGET_ISO}"
+    _set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC}"
+    _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO}"
+    _set_prop "gsm.operator.iso-country" "${TARGET_ISO}"
 fi
 
 (
