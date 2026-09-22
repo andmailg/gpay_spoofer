@@ -107,6 +107,7 @@ fi
 _set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC}"
 _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO}"
 _set_prop "gsm.operator.iso-country" "${TARGET_ISO}"
+_set_prop "ro.cdma.home.operator.numeric" "${TARGET_NUMERIC}"
 
 if [ "$SELECTED_CARRIER" -eq 0 ] ; then
     log_msg "✅ Спуфинг успешно запущен в режиме Авто: [$LAST_SEARCHED_ISO] $TARGET_NAME"

@@ -84,6 +84,7 @@ if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ] && [ "$TARGET_NUMERIC" != "Ð
     _set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC}"
     _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO}"
     _set_prop "gsm.operator.iso-country" "${TARGET_ISO}"
+    _set_prop "ro.cdma.home.operator.numeric" "${TARGET_NUMERIC}"
 fi
 
 # ==========================================
