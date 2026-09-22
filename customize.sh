@@ -1,5 +1,7 @@
 #!/system/bin/sh
 CARRIERS_DB="$MODPATH/carriers.db"
+
+# 1. Генерация встроенной базы данных (если отсутствует в zip)
 if [ ! -f "$CARRIERS_DB" ]; then
     cat << 'EOF' > "$CARRIERS_DB"
 1:24701:lv:Latvia (LMT)
@@ -37,6 +39,7 @@ if [ ! -f "$CARRIERS_DB" ]; then
 EOF
 fi
 
+# Функция отслеживания нажатия кнопок (громкость + / громкость -)
 choose_key() {
     if command -v key_check >/dev/null 2>&1; then
         key_check
@@ -88,7 +91,7 @@ TOTAL_STATES=$((TOTAL_CARRIERS + 1))
 
 while true; do
     if [ "$MENU_INDEX" -eq 0 ]; then
-        CURRENT_NAME="Оригинальные значения"
+        CURRENT_NAME="Оригинальные значения (Режим Авто)"
     else
         CURRENT_NAME="Неизвестный профиль"
         _match=$(grep "^${MENU_INDEX}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
@@ -107,7 +110,32 @@ while true; do
     fi
 done
 
-printf 'selected_carrier=%s\n' "$SELECTED_CARRIER" > "$MODPATH/settings"
+# =========================================================================
+# НОВАЯ ЛОГИКА СИНХРОНИЗАЦИИ ПЕРЕМЕННЫХ НА ОСНОВЕ ВЫБОРА ПОЛЬЗОВАТЕЛЯ
+# =========================================================================
+NEW_ISO=""
+
+if [ "$SELECTED_CARRIER" -eq 0 ]; then
+    NEW_ISO="" # При выборе Авто (0) переменная региона создается пустой
+else
+    # При выборе статического профиля извлекаем его ISO из базы данных
+    _match=$(grep "^${SELECTED_CARRIER}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
+    if [ -n "$_match" ]; then
+        NEW_ISO=$(echo "$_match" | cut -d':' -f3 | tr -d '\r ')
+    fi
+fi
+
+# Инициализируем файл settings с жестко заданной двухстрочной структурой
+printf 'selected_carrier=%s\nlast_searched_iso=%s\n' "$SELECTED_CARRIER" "$NEW_ISO" > "$MODPATH/settings"
+
+# Настройка безопасных прав доступа (POSIX-стандарт Magisk BusyBox)
 chmod 0600 "$MODPATH/settings" "$CARRIERS_DB"
-chmod 0755 "$MODPATH/service.sh" "$MODPATH/action.sh" 2>/dev/null
-ui_print "✅ Успешно! Выбран профиль [$SELECTED_CARRIER]"
+chmod 0755 "$MODPATH/service.sh" "$MODPATH/action.sh" "$MODPATH/bin_checker.sh" 2>/dev/null
+
+ui_print "==================================="
+if [ "$SELECTED_CARRIER" -eq 0 ]; then
+    ui_print "✅ Успешно! Модуль запущен в режиме Авто."
+else
+    ui_print "✅ Успешно! Зафиксирован профиль [$SELECTED_CARRIER] (Регион: $NEW_ISO)"
+fi
+ui_print "==================================="

@@ -23,6 +23,7 @@ log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [SERVICE] $1" >> "$LOGFILE" 2>/dev/null
 }
 
+# Ожидание окончания загрузки системы
 timeout=30
 while [ "$(getprop sys.boot_completed)" != "1" ]; do
     sleep 2
@@ -30,6 +31,7 @@ while [ "$(getprop sys.boot_completed)" != "1" ]; do
     [ "$timeout" -le 0 ] && break
 done
 
+# Проверка региона текущей SIM-карты (защитный фильтр)
 RAW_ISO=$(getprop ril.operator.iso-country 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]')
 [ -z "$RAW_ISO" ] && RAW_ISO=$(getprop gsm.sim.official_iso-country 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]')
 
@@ -41,6 +43,7 @@ case "$RAW_ISO" in
         ;;
 esac
 
+# Бэкап оригинальных системных пропсов оператора
 CURRENT_SYSTEM_NUMERIC=$(getprop gsm.operator.numeric | cut -d',' -f1)
 CURRENT_SYSTEM_ISO=$(getprop gsm.sim.operator.iso-country | cut -d',' -f1)
 CURRENT_SYSTEM_CDMA=$(getprop ro.cdma.home.operator.numeric)
@@ -56,27 +59,54 @@ if [ -n "$CURRENT_SYSTEM_NUMERIC" ] && [ -n "$CURRENT_SYSTEM_ISO" ]; then
     fi
 fi
 
+# Получаем текущий выбранный профиль
 SELECTED_CARRIER=$(grep '^selected_carrier=' "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | head -n 1)
 case "$SELECTED_CARRIER" in *[!0-9]*|"") SELECTED_CARRIER=0 ;; esac
-if [ "$SELECTED_CARRIER" -eq 0 ]; then
-    exit 0
-fi
 
 TARGET_NUMERIC=""
 TARGET_ISO=""
 TARGET_NAME=""
-_match=$(grep "^${SELECTED_CARRIER}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
-if [ -n "$_match" ]; then
-    TARGET_NUMERIC=$(echo "$_match" | cut -d':' -f2)
-    TARGET_ISO=$(echo "$_match" | cut -d':' -f3)
-    TARGET_NAME=$(echo "$_match" | cut -d':' -f4)
+
+if [ "$SELECTED_CARRIER" -eq 0 ]; then
+    # =========================================================================
+    # ВЕТКА 1: SELECTED_CARRIER = 0 (РЕЖИМ АВТО)
+    # =========================================================================
+    LAST_SEARCHED_ISO=$(grep '^last_searched_iso=' "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | head -n 1 | tr -d '\r ' | tr '[:upper:]' '[:lower:]')
+    
+    if [ -n "$LAST_SEARCHED_ISO" ]; then
+        _match=$(grep ":${LAST_SEARCHED_ISO}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
+        if [ -n "$_match" ]; then
+            TARGET_NUMERIC=$(echo "$_match" | cut -d':' -f2)
+            TARGET_ISO=$(echo "$_match" | cut -d':' -f3)
+            TARGET_NAME=$(echo "$_match" | cut -d':' -f4)
+            log_msg "🤖 Режим Авто: Найден профиль для региона [$LAST_SEARCHED_ISO] -> $TARGET_NAME"
+        fi
+    fi
+
+    # Если last_searched_iso пуст или регион отсутствует в базе данных
+    if [ -z "$TARGET_NUMERIC" ] || [ -z "$TARGET_ISO" ]; then
+        log_msg "ℹ️ Режим Авто: Регион пуст или не найден в БД. Спуфинг не применяется."
+        exit 0
+    fi
+else
+    # =========================================================================
+    # ВЕТКА 2: SELECTED_CARRIER != 0 (СТАТИЧЕСКИЙ ВЫБОР)
+    # Переменная last_searched_iso полностью игнорируется
+    # =========================================================================
+    _match=$(grep "^${SELECTED_CARRIER}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
+    if [ -n "$_match" ]; then
+        TARGET_NUMERIC=$(echo "$_match" | cut -d':' -f2)
+        TARGET_ISO=$(echo "$_match" | cut -d':' -f3)
+        TARGET_NAME=$(echo "$_match" | cut -d':' -f4)
+    fi
+
+    if [ -z "$TARGET_NUMERIC" ] || [ -z "$TARGET_ISO" ]; then
+        log_msg "❌ Ошибка: Статический профиль [$SELECTED_CARRIER] не найден в базе данных."
+        exit 1
+    fi
 fi
 
-if [ -z "$TARGET_NUMERIC" ] || [ -z "$TARGET_ISO" ]; then
-    log_msg "❌ Ошибка: Профиль [$SELECTED_CARRIER] не найден."
-    exit 1
-fi
-
+# Применение пропсов спуфинга (выполняется для любой успешной ветки)
 for suffix in "" ".1" ".2"; do
     _set_prop "gsm.sim.operator.numeric$suffix" "$TARGET_NUMERIC"
     _set_prop "gsm.sim.operator.iso-country$suffix" "$TARGET_ISO"
@@ -85,4 +115,8 @@ for suffix in "" ".1" ".2"; do
 done
 _set_prop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
 
-log_msg "✅ Спуфинг активирован: [$SELECTED_CARRIER] $TARGET_NAME"
+if [ "$SELECTED_CARRIER" -eq 0 ] ; then
+    log_msg "✅ Спуфинг успешно запущен в режиме Авто: [$LAST_SEARCHED_ISO] $TARGET_NAME"
+else
+    log_msg "✅ Спуфинг успешно запущен по профилю [$SELECTED_CARRIER]: $TARGET_NAME"
+fi
