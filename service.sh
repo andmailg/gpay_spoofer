@@ -46,7 +46,6 @@ esac
 # Бэкап оригинальных системных пропсов оператора
 CURRENT_SYSTEM_NUMERIC=$(getprop gsm.operator.numeric | cut -d',' -f1)
 CURRENT_SYSTEM_ISO=$(getprop gsm.sim.operator.iso-country | cut -d',' -f1)
-CURRENT_SYSTEM_CDMA=$(getprop ro.cdma.home.operator.numeric)
 
 if [ -n "$CURRENT_SYSTEM_NUMERIC" ] && [ -n "$CURRENT_SYSTEM_ISO" ]; then
     LAST_SAVED_CARRIER=$(grep '^selected_carrier=' "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | head -n 1)
@@ -54,7 +53,6 @@ if [ -n "$CURRENT_SYSTEM_NUMERIC" ] && [ -n "$CURRENT_SYSTEM_ISO" ]; then
     if [ "$LAST_SAVED_CARRIER" -eq 0 ] || [ ! -f "$PROPS_FILE" ]; then
         echo "ORIG_NUMERIC=\"$CURRENT_SYSTEM_NUMERIC\"" > "$PROPS_FILE"
         echo "ORIG_ISO=\"$CURRENT_SYSTEM_ISO\"" >> "$PROPS_FILE"
-        echo "ORIG_CDMA=\"$CURRENT_SYSTEM_CDMA\"" >> "$PROPS_FILE"
         chmod 0600 "$PROPS_FILE"
     fi
 fi
@@ -91,7 +89,6 @@ if [ "$SELECTED_CARRIER" -eq 0 ]; then
 else
     # =========================================================================
     # ВЕТКА 2: SELECTED_CARRIER != 0 (СТАТИЧЕСКИЙ ВЫБОР)
-    # Переменная last_searched_iso полностью игнорируется
     # =========================================================================
     _match=$(grep "^${SELECTED_CARRIER}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
     if [ -n "$_match" ]; then
@@ -106,14 +103,11 @@ else
     fi
 fi
 
-# Применение пропсов спуфинга (выполняется для любой успешной ветки)
-for suffix in "" ".1" ".2"; do
-    _set_prop "gsm.sim.operator.numeric$suffix" "$TARGET_NUMERIC"
-    _set_prop "gsm.sim.operator.iso-country$suffix" "$TARGET_ISO"
-    _set_prop "gsm.operator.numeric$suffix" "$TARGET_NUMERIC"
-    _set_prop "gsm.operator.iso-country$suffix" "$TARGET_ISO"
-done
-_set_prop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
+# Применение пропсов спуфинга через спаренные строки (маскировка Dual SIM)
+_set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC},${TARGET_NUMERIC}"
+_set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO},${TARGET_ISO}"
+_set_prop "gsm.operator.numeric" "${TARGET_NUMERIC},${TARGET_NUMERIC}"
+_set_prop "gsm.operator.iso-country" "${TARGET_ISO},${TARGET_ISO}"
 
 if [ "$SELECTED_CARRIER" -eq 0 ] ; then
     log_msg "✅ Спуфинг успешно запущен в режиме Авто: [$LAST_SEARCHED_ISO] $TARGET_NAME"

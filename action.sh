@@ -1,6 +1,4 @@
 #!/system/bin/sh
-
-# 1. Жестко определяем директорию модуля
 MODDIR="/data/adb/modules/gpay-spoofer"
 [ ! -d "$MODDIR" ] && MODDIR="${0%/*}"
 
@@ -25,18 +23,6 @@ _set_prop() {
     fi
 }
 
-_del_prop() {
-    if command -v resetprop >/dev/null 2>&1; then
-        resetprop --delete "$1" 2>/dev/null
-    elif [ -x /data/adb/ap/bin/kpcli ]; then
-        /data/adb/ap/bin/kpcli property set "$1" "" 2>/dev/null
-    elif [ -x /data/adb/ksu/bin/kpcli ]; then
-        /data/adb/ksu/bin/kpcli property set "$1" "" 2>/dev/null
-    elif command -v kpcli >/dev/null 2>&1; then
-        kpcli property set "$1" "" 2>/dev/null
-    fi
-}
-
 log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ACTION] $1" >> "$LOGFILE" 2>/dev/null
 }
@@ -57,15 +43,13 @@ case "$CURRENT" in *[!0-9]*|"") CURRENT=0 ;; esac
 # Рассчитываем индекс следующего профиля по кругу
 NEW_CARRIER=$(( (CURRENT + 1) % TOTAL_STATES ))
 
-# Загружаем оригинальные пропсы для отката при переключении на режим Авто
+# Загружаем оригинальные пропсы для отката
 if [ -f "$PROPS_FILE" ]; then
     ORIG_NUMERIC=$(grep '^ORIG_NUMERIC=' "$PROPS_FILE" | cut -d'"' -f2 | tr -d '\r')
     ORIG_ISO=$(grep '^ORIG_ISO=' "$PROPS_FILE" | cut -d'"' -f2 | tr -d '\r')
-    ORIG_CDMA=$(grep '^ORIG_CDMA=' "$PROPS_FILE" | cut -d'"' -f2 | tr -d '\r')
 else
     ORIG_NUMERIC="Неизвестно"
     ORIG_ISO="Неизвестно"
-    ORIG_CDMA=""
 fi
 
 NEW_ISO=""
@@ -80,50 +64,39 @@ if [ "$NEW_CARRIER" -eq 0 ]; then
     TARGET_NAME="Спуфинг ОТКЛЮЧЕН (Режим Авто)"
     TARGET_NUMERIC="$ORIG_NUMERIC"
     TARGET_ISO="$ORIG_ISO"
-    NEW_ISO="" # При выборе Авто переменная региона создается пустой
+    NEW_ISO=""
 else
     _match=$(grep "^${NEW_CARRIER}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
     if [ -n "$_match" ]; then
         TARGET_NUMERIC=$(echo "$_match" | cut -d':' -f2 | tr -d '\r')
         TARGET_ISO=$(echo "$_match" | cut -d':' -f3 | tr -d '\r')
         TARGET_NAME=$(echo "$_match" | cut -d':' -f4 | tr -d '\r')
-        NEW_ISO="$TARGET_ISO" # Автоматически принимает соответствующее значение профиля
+        NEW_ISO="$TARGET_ISO"
     fi
 fi
 
-# Чистая перезапись структуры файла без накопления строкового мусора
+# Перезапись файла настроек
 printf "selected_carrier=%s\nlast_searched_iso=%s\n" "$NEW_CARRIER" "$NEW_ISO" > "$SETTINGS"
 chmod 0600 "$SETTINGS"
 
-# Мгновенное применение пропсов в текущей Android-сессии
+# Применение пропсов через спаренные строки (маскировка Dual SIM)
 if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ] && [ "$TARGET_NUMERIC" != "Неизвестно" ]; then
-    for suffix in "" ".1" ".2"; do
-        _set_prop "gsm.sim.operator.numeric$suffix" "$TARGET_NUMERIC"
-        _set_prop "gsm.sim.operator.iso-country$suffix" "$TARGET_ISO"
-        _set_prop "gsm.operator.numeric$suffix" "$TARGET_NUMERIC"
-        _set_prop "gsm.operator.iso-country$suffix" "$TARGET_ISO"
-    done
-    if [ "$NEW_CARRIER" -eq 0 ]; then
-        if [ -n "$ORIG_CDMA" ]; then
-            _set_prop "ro.cdma.home.operator.numeric" "$ORIG_CDMA"
-        else
-            _del_prop "ro.cdma.home.operator.numeric"
-        fi
-    else
-        _set_prop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
-    fi
+    _set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC},${TARGET_NUMERIC}"
+    _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO},${TARGET_ISO}"
+    _set_prop "gsm.operator.numeric" "${TARGET_NUMERIC},${TARGET_NUMERIC}"
+    _set_prop "gsm.operator.iso-country" "${TARGET_ISO},${TARGET_ISO}"
 fi
 
-# =========================================================================
-# ВЫВОД ИНТЕРАКТИВНОГО СПИСКА (МОЛНИЕНОСНЫЙ ЧЕРЕЗ AWK)
-# =========================================================================
+# ==========================================
+# ВЫВОД ИНТЕРАКТИВНОГО СПИСКА В ТЕРМИНАЛ
+# ==========================================
 echo "-----------------------------------"
 echo "СПИСОК ПРОФИЛЕЙ:"
 
 if [ "$NEW_CARRIER" -eq 0 ]; then
-    echo "-> [0] Режим Авто (Используются родные пропсы) <-- АКТИВЕН"
+    echo "-> Режим Авто (Используются родные пропсы) <-- АКТИВЕН"
 else
-    echo "   [0] Режим Авто (Используются родные пропсы)"
+    echo "   Режим Авто (Используются родные пропсы)"
 fi
 
 # Обработка базы за один проход в памяти

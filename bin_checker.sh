@@ -168,13 +168,10 @@ chmod 0600 "$SETTINGS"
 # ПРИМЕНЕНИЕ И ПЕРЕЗАПУСК Google
 # =========================================================================
 if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ]; then
-    for suffix in "" ".1" ".2"; do
-        _set_prop "gsm.sim.operator.numeric$suffix" "$TARGET_NUMERIC"
-        _set_prop "gsm.sim.operator.iso-country$suffix" "$TARGET_ISO"
-        _set_prop "gsm.operator.numeric$suffix" "$TARGET_NUMERIC"
-        _set_prop "gsm.operator.iso-country$suffix" "$TARGET_ISO"
-    done
-    _set_prop "ro.cdma.home.operator.numeric" "$TARGET_NUMERIC"
+    _set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC},${TARGET_NUMERIC}"
+    _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO},${TARGET_ISO}"
+    _set_prop "gsm.operator.numeric" "${TARGET_NUMERIC},${TARGET_NUMERIC}"
+    _set_prop "gsm.operator.iso-country" "${TARGET_ISO},${TARGET_ISO}"
 fi
 
 (
