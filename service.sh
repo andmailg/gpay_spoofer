@@ -23,13 +23,16 @@ log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [SERVICE] $1" >> "$LOGFILE" 2>/dev/null
 }
 
+# Увеличим паузу, чтобы память точно успела смонтироваться
+sleep 15
+
 # Ожидание окончания загрузки системы
-timeout=30
-while [ "$(getprop sys.boot_completed)" != "1" ]; do
-    sleep 2
-    timeout=$((timeout - 1))
-    [ "$timeout" -le 0 ] && break
-done
+#timeout=30
+#while [ "$(getprop sys.boot_completed)" != "1" ]; do
+    #sleep 2
+    #timeout=$((timeout - 1))
+    #[ "$timeout" -le 0 ] && break
+#done
 
 # Проверка региона текущей SIM-карты (защитный фильтр)
 RAW_ISO=$(getprop ril.operator.iso-country 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]')
