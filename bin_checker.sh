@@ -42,7 +42,7 @@ case "$USER_BIN" in
 esac
 
 BIN_8=$(echo "$USER_BIN" | cut -c1-8)
-API_URL="https://handyapi.com"
+API_URL="https://data.handyapi.com/bin/$BIN_8"
 
 RESPONSE=""
 if command -v curl >/dev/null 2>&1; then

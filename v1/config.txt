@@ -1,8 +1,0 @@
-# GPay-Spoofer Configuration
-# Target region for SIM spoofing
-TARGET_ALPHA="Latvijas Mobilais"
-TARGET_NUMERIC="24701"
-TARGET_ISO="lv"
-
-# Source region to trigger spoofing
-SOURCE_ISO="ru"
