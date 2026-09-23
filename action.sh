@@ -47,14 +47,17 @@ NEW_CARRIER=$(( (CURRENT + 1) % TOTAL_STATES ))
 if [ -f "$PROPS_FILE" ]; then
     ORIG_NUMERIC=$(grep '^ORIG_NUMERIC=' "$PROPS_FILE" | cut -d'"' -f2 | tr -d '\r')
     ORIG_ISO=$(grep '^ORIG_ISO=' "$PROPS_FILE" | cut -d'"' -f2 | tr -d '\r')
+    ORIG_ALPHA=$(grep '^ORIG_ALPHA=' "$PROPS_FILE" | cut -d'"' -f2 | tr -d '\r')
 else
     ORIG_NUMERIC="Неизвестно"
     ORIG_ISO="Неизвестно"
+    ORIG_ALPHA="Неизвестно"
 fi
 
 NEW_ISO=""
 TARGET_NUMERIC=""
 TARGET_ISO=""
+TARGET_ALPHA=""
 TARGET_NAME=""
 
 # =========================================================================
@@ -64,13 +67,15 @@ if [ "$NEW_CARRIER" -eq 0 ]; then
     TARGET_NAME="Спуфинг ОТКЛЮЧЕН (Режим Авто)"
     TARGET_NUMERIC="$ORIG_NUMERIC"
     TARGET_ISO="$ORIG_ISO"
+    TARGET_ALPHA="$ORIG_ALPHA"
     NEW_ISO=""
 else
     _match=$(grep "^${NEW_CARRIER}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
     if [ -n "$_match" ]; then
         TARGET_NUMERIC=$(echo "$_match" | cut -d':' -f2 | tr -d '\r')
         TARGET_ISO=$(echo "$_match" | cut -d':' -f3 | tr -d '\r')
-        TARGET_NAME=$(echo "$_match" | cut -d':' -f4 | tr -d '\r')
+        TARGET_ALPHA=$(echo "$_match" | cut -d':' -f4 | tr -d '\r')
+        TARGET_NAME="${TARGET_ALPHA} ($(echo "$TARGET_ISO" | tr '[:lower:]' '[:upper:]'))"
         NEW_ISO="$TARGET_ISO"
     fi
 fi
@@ -81,9 +86,11 @@ chmod 0600 "$SETTINGS"
 
 # Применение пропсов через спаренные строки (маскировка Dual SIM)
 if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ] && [ "$TARGET_NUMERIC" != "Неизвестно" ]; then
+    _set_prop "gsm.sim.operator.alpha" "${TARGET_ALPHA}"
+    _set_prop "gsm.operator.alpha" "${TARGET_ALPHA}"
     _set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC}"
-    _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO}"
     _set_prop "gsm.operator.numeric" "${TARGET_NUMERIC}"
+    _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO}"
     _set_prop "gsm.operator.iso-country" "${TARGET_ISO}"
 fi
 
@@ -104,12 +111,12 @@ awk -v active="$NEW_CARRIER" '
 BEGIN { FS=":"; RS="\r?\n" }
 /^[0-9]+/ {
     id = $1
-    iso = $3
-    name = $4
+    iso = toupper($3)
+    alpha = $4
     if (id == active) {
-        printf "-> [%s] %s (%s) <-- АКТИВЕН\n", id, name, iso
+        printf "-> [%s] %s (%s) <-- АКТИВЕН\n", id, alpha, iso
     } else {
-        printf "   [%s] %s (%s)\n", id, name, iso
+        printf "   [%s] %s (%s)\n", id, alpha, iso
     }
 }
 ' "$CARRIERS_DB"
@@ -118,7 +125,7 @@ BEGIN { FS=":"; RS="\r?\n" }
 echo "-----------------------------------"
 echo "УСПЕШНО ПЕРЕКЛЮЧЕНО!"
 echo "Профиль: [$NEW_CARRIER] $TARGET_NAME"
-echo "Numeric: $TARGET_NUMERIC | ISO: $TARGET_ISO"
+echo "Numeric: $TARGET_NUMERIC | ISO: $TARGET_ISO | Alpha: $TARGET_ALPHA"
 echo "-----------------------------------"
 log_msg "Переключение профиля: [$NEW_CARRIER] $TARGET_NAME"
 

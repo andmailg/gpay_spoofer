@@ -1,32 +1,32 @@
-1:24701:lv:Latvia (LMT)
-2:310410:us:USA (AT&T)
-3:26201:de:Germany (Telekom)
-4:20801:fr:France (Orange)
-5:26002:pl:Poland (T-Mobile)
-6:24405:fi:Finland (Elisa)
-7:302720:ca:Canada (Rogers)
-8:52501:sg:Singapore (Singtel)
-9:42402:ae:UAE (Etisalat)
-10:45005:kr:South Korea (SKT)
-11:40101:kz:Kazakhstan (Beeline)
-12:37001:do:Dominican Rep (Orange)
-13:28601:tr:Turkey (Turkcell)
-14:43211:ir:Iran (Hamrah-e-Avval)
-15:23410:gb:United Kingdom (O2)
-16:22201:it:Italy (TIM)
-17:21401:es:Spain (Movistar)
-18:20404:nl:Netherlands (Vodafone)
-19:23201:at:Austria (A1)
-20:22801:ch:Switzerland (Swisscom)
-21:44010:jp:Japan (NTT Docomo)
-22:50501:au:Australia (Telstra)
-23:53001:nz:New Zealand (One NZ)
-24:72402:br:Brazil (Claro)
-25:334020:mx:Mexico (Telcel)
-26:73001:cl:Chile (Entel)
-27:40445:in:India (Airtel)
-28:45201:vn:Vietnam (Viettel)
-29:52001:th:Thailand (AIS)
-30:51011:id:Indonesia (XL Axiata)
-31:42501:il:Israel (Partner)
-32:65501:za:South Africa (Vodacom)
+1:24701:lv:LMT
+2:310410:us:AT&T
+3:26201:de:Telekom
+4:20801:fr:Orange
+5:26002:pl:T-Mobile
+6:24405:fi:Elisa
+7:302720:ca:Rogers
+8:52501:sg:Singtel
+9:42402:ae:Etisalat
+10:45005:kr:SKT
+11:40101:kz:Beeline
+12:37001:do:Orange
+13:28601:tr:Turkcell
+14:43211:ir:Hamrah-e-Avval
+15:23410:gb:O2
+16:22201:it:TIM
+17:21401:es:Movistar
+18:20404:nl:Vodafone
+19:23201:at:A1
+20:22801:ch:Swisscom
+21:44010:jp:NTT Docomo
+22:50501:au:Telstra
+23:53001:nz:One NZ
+24:72402:br:Claro
+25:334020:mx:Telcel
+26:73001:cl:Entel
+27:40445:in:Airtel
+28:45201:vn:Viettel
+29:52001:th:AIS
+30:51011:id:XL Axiata
+31:42501:il:Partner
+32:65501:za:Vodacom

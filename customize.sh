@@ -1,83 +1,68 @@
 #!/system/bin/sh
 CARRIERS_DB="$MODPATH/carriers.db"
 
-# 1. Генерация встроенной базы данных (если отсутствует в zip)
 if [ ! -f "$CARRIERS_DB" ]; then
     cat << 'EOF' > "$CARRIERS_DB"
-1:24701:lv:Latvia (LMT)
-2:310410:us:USA (AT&T)
-3:26201:de:Germany (Telekom)
-4:20801:fr:France (Orange)
-5:26002:pl:Poland (T-Mobile)
-6:24405:fi:Finland (Elisa)
-7:302720:ca:Canada (Rogers)
-8:52501:sg:Singapore (Singtel)
-9:42402:ae:UAE (Etisalat)
-10:45005:kr:South Korea (SKT)
-11:40101:kz:Kazakhstan (Beeline)
-12:37001:do:Dominican Rep (Orange)
-13:28601:tr:Turkey (Turkcell)
-14:43211:ir:Iran (Hamrah-e-Avval)
-15:23410:gb:United Kingdom (O2)
-16:22201:it:Italy (TIM)
-17:21401:es:Spain (Movistar)
-18:20404:nl:Netherlands (Vodafone)
-19:23201:at:Austria (A1)
-20:22801:ch:Switzerland (Swisscom)
-21:44010:jp:Japan (NTT Docomo)
-22:50501:au:Australia (Telstra)
-23:53001:nz:New Zealand (One NZ)
-24:72402:br:Brazil (Claro)
-25:334020:mx:Mexico (Telcel)
-26:73001:cl:Chile (Entel)
-27:40445:in:India (Airtel)
-28:45201:vn:Vietnam (Viettel)
-29:52001:th:Thailand (AIS)
-30:51011:id:Indonesia (XL Axiata)
-31:42501:il:Israel (Partner)
-32:65501:za:South Africa (Vodacom)
+1:24701:lv:LMT
+2:310410:us:AT&T
+3:26201:de:Telekom
+4:20801:fr:Orange
+5:26002:pl:T-Mobile
+6:24405:fi:Elisa
+7:302720:ca:Rogers
+8:52501:sg:Singtel
+9:42402:ae:Etisalat
+10:45005:kr:SKT
+11:40101:kz:Beeline
+12:37001:do:Orange
+13:28601:tr:Turkcell
+14:43211:ir:Hamrah-e-Avval
+15:23410:gb:O2
+16:22201:it:TIM
+17:21401:es:Movistar
+18:20404:nl:Vodafone
+19:23201:at:A1
+20:22801:ch:Swisscom
+21:44010:jp:NTT Docomo
+22:50501:au:Telstra
+23:53001:nz:One NZ
+24:72402:br:Claro
+25:334020:mx:Telcel
+26:73001:cl:Entel
+27:40445:in:Airtel
+28:45201:vn:Viettel
+29:52001:th:AIS
+30:51011:id:XL Axiata
+31:42501:il:Partner
+32:65501:za:Vodacom
 EOF
 fi
 
 # Функция отслеживания нажатия кнопок (громкость + / громкость -)
 choose_key() {
     if command -v key_check >/dev/null 2>&1; then
-        key_check
-        return $?
+        key_check; return $?
     fi
-
     if ! command -v getevent >/dev/null 2>&1; then
         ui_print "⚠️ getevent не найден! Автовыбор через 3 секунды..."
-        sleep 3
-        return 1
+        sleep 3; return 1
     fi
-
     _count=0
     while [ "$_count" -lt 150 ]; do
         _event=$(getevent -ql -c 1 2>/dev/null | head -n 1)
-        if [ -z "$_event" ]; then
-            _event=$(getevent -c 1 2>/dev/null | head -n 1)
-        fi
-
+        [ -z "$_event" ] && _event=$(getevent -c 1 2>/dev/null | head -n 1)
         case "$_event" in
-            *KEY_VOLUMEUP*DOWN* | *0001*0073*00000001*)
-                return 0
-                ;;
-            *KEY_VOLUMEDOWN*DOWN* | *0001*0072*00000001*)
-                return 1
-                ;;
+            *KEY_VOLUMEUP*DOWN* | *0001*0073*00000001*) return 0 ;;
+            *KEY_VOLUMEDOWN*DOWN* | *0001*0072*00000001*) return 1 ;;
         esac
-        
         sleep 0.1
         _count=$((_count + 1))
     done
-
     return 1
 }
 
 TOTAL_CARRIERS=$(grep -c "^[0-9]" "$CARRIERS_DB" 2>/dev/null || echo "32")
 case "$TOTAL_CARRIERS" in ''|*[!0-9]*) TOTAL_CARRIERS=32 ;; esac
-SELECTED_CARRIER=""
 
 ui_print " "
 ui_print "==================================="
@@ -96,12 +81,13 @@ while true; do
         CURRENT_NAME="Неизвестный профиль"
         _match=$(grep "^${MENU_INDEX}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
         if [ -n "$_match" ]; then
-            CURRENT_NAME=$(echo "$_match" | cut -d':' -f4)
+            _iso=$(echo "$_match" | cut -d':' -f3 | tr '[:lower:]' '[:upper:]')
+            _alpha=$(echo "$_match" | cut -d':' -f4)
+            CURRENT_NAME="${_alpha} (${_iso})"
         fi
     fi
     
     ui_print "-> Выбор: $CURRENT_NAME"
-    
     if choose_key; then
         SELECTED_CARRIER="$MENU_INDEX"
         break
@@ -114,15 +100,9 @@ done
 # НОВАЯ ЛОГИКА СИНХРОНИЗАЦИИ ПЕРЕМЕННЫХ НА ОСНОВЕ ВЫБОРА ПОЛЬЗОВАТЕЛЯ
 # =========================================================================
 NEW_ISO=""
-
-if [ "$SELECTED_CARRIER" -eq 0 ]; then
-    NEW_ISO="" # При выборе Авто (0) переменная региона создается пустой
-else
-    # При выборе статического профиля извлекаем его ISO из базы данных
+if [ "$SELECTED_CARRIER" -ne 0 ]; then
     _match=$(grep "^${SELECTED_CARRIER}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
-    if [ -n "$_match" ]; then
-        NEW_ISO=$(echo "$_match" | cut -d':' -f3 | tr -d '\r ')
-    fi
+    [ -n "$_match" ] && NEW_ISO=$(echo "$_match" | cut -d':' -f3 | tr -d '\r ')
 fi
 
 # Инициализируем файл settings с жестко заданной двухстрочной структурой

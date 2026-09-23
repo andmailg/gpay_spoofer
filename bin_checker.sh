@@ -36,18 +36,13 @@ read -r USER_INPUT
 
 USER_BIN=$(echo "$USER_INPUT" | tr -d ' \t-')
 case "$USER_BIN" in
-    *[!0-9]* | "")
-        echo "❌ Ошибка: Только цифры!"
-        exit 1
-        ;;
+    *[!0-9]* | "") echo "❌ Ошибка: Только цифры!"; exit 1 ;;
     [0-9]|[0-9][0-9]|[0-9][0-9][0-9]|[0-9][0-9][0-9][0-9]|[0-9][0-9][0-9][0-9][0-9])
-        echo "❌ Ошибка: Минимум 6 цифр!"
-        exit 1
-        ;;
+        echo "❌ Ошибка: Минимум 6 цифр!"; exit 1 ;;
 esac
 
 BIN_8=$(echo "$USER_BIN" | cut -c1-8)
-API_URL="https://data.handyapi.com/bin/$BIN_8"
+API_URL="https://handyapi.com"
 
 RESPONSE=""
 if command -v curl >/dev/null 2>&1; then
@@ -61,7 +56,6 @@ if [ -z "$RESPONSE" ]; then
     exit 1
 fi
 
-# Очистка JSON от кавычек и пробелов
 CLEAN_RESP=$(echo "$RESPONSE" | tr -d ' \t\n\r"')
 
 TARGET_ISO=""
@@ -83,6 +77,7 @@ case "$CURRENT_CARRIER" in *[!0-9]*|"") CURRENT_CARRIER=0 ;; esac
 
 NEW_ID=""
 TARGET_NUMERIC=""
+TARGET_ALPHA=""
 TARGET_NAME=""
 
 # Поиск соответствия региона карты в базе данных
@@ -90,7 +85,8 @@ _match=$(grep ":${TARGET_ISO}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
 if [ -n "$_match" ]; then
     NEW_ID=$(echo "$_match" | cut -d':' -f1)
     TARGET_NUMERIC=$(echo "$_match" | cut -d':' -f2)
-    TARGET_NAME=$(echo "$_match" | cut -d':' -f4)
+    TARGET_ALPHA=$(echo "$_match" | cut -d':' -f4)
+    TARGET_NAME="${TARGET_ALPHA} ($(echo "$TARGET_ISO" | tr '[:lower:]' '[:upper:]'))"
 else
     # Откат на Авто (ID=0), если БИН карты принадлежит региону, которого нет в базе
     echo "⚠️ Регион карты [$TARGET_ISO] не поддерживается базой данных."
@@ -100,9 +96,11 @@ else
     if [ -f "$PROPS_FILE" ]; then
         TARGET_ISO=$(grep '^ORIG_ISO=' "$PROPS_FILE" | cut -d'"' -f2 | tr -d '\r ')
         TARGET_NUMERIC=$(grep '^ORIG_NUMERIC=' "$PROPS_FILE" | cut -d'"' -f2 | tr -d '\r ')
+        TARGET_ALPHA=$(grep '^ORIG_ALPHA=' "$PROPS_FILE" | cut -d'"' -f2 | tr -d '\r ')
     else
         TARGET_ISO=$(getprop gsm.sim.operator.iso-country | cut -d',' -f1)
         TARGET_NUMERIC=$(getprop gsm.operator.numeric | cut -d',' -f1)
+        TARGET_ALPHA=$(getprop gsm.operator.alpha | cut -d',' -f1)
     fi
 fi
 
@@ -117,7 +115,6 @@ if [ "$CURRENT_CARRIER" -ne 0 ] && [ "$NEW_ID" -ne 0 ]; then
     
     # Приведение ответа к нижнему регистру
     USER_CHOICE=$(echo "$USER_CHOICE" | tr '[:upper:]' '[:lower:]')
-    
     case "$USER_CHOICE" in
         y | yes | д | да)
             # Переключаем сессию в режим Авто
@@ -128,9 +125,9 @@ if [ "$CURRENT_CARRIER" -ne 0 ] && [ "$NEW_ID" -ne 0 ]; then
             # Отказ: выводим текущие значения статического профиля и завершаем работу
             _static_match=$(grep "^${CURRENT_CARRIER}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
             if [ -n "$_static_match" ]; then
-                _st_iso=$(echo "$_static_match" | cut -d':' -f3)
-                _st_name=$(echo "$_static_match" | cut -d':' -f4)
-                echo "ℹ️ Действие отменено. Сохраняется профиль [$CURRENT_CARRIER] ${_st_name} (${_st_iso})."
+                _st_iso=$(echo "$_static_match" | cut -d':' -f3 | tr '[:lower:]' '[:upper:]')
+                _st_alpha=$(echo "$_static_match" | cut -d':' -f4)
+                echo "ℹ️ Действие отменено. Сохраняется статический профиль: ${_st_alpha} (${_st_iso})."
             else
                 echo "ℹ️ Действие отменено. Активен неизвестный профиль [$CURRENT_CARRIER]."
             fi
@@ -146,7 +143,6 @@ if [ "$CURRENT_CARRIER" -eq 0 ] || [ "$NEW_ID" -eq 0 ]; then
     # Если мы изначально в Авто (0), переключились на Авто (0) или ушли в откат (NEW_ID = 0)
     _actual_carrier="$CURRENT_CARRIER"
     [ "$NEW_ID" -eq 0 ] && _actual_carrier=0
-
     printf "selected_carrier=%s\nlast_searched_iso=%s\n" "$_actual_carrier" "$TARGET_ISO" > "$SETTINGS"
     echo "📝 Настройки обновлены. Авто-режим нацелен на регион [$TARGET_ISO]."
 else
@@ -159,7 +155,8 @@ else
     if [ -n "$_static_match" ]; then
         TARGET_NUMERIC=$(echo "$_static_match" | cut -d':' -f2)
         TARGET_ISO=$(echo "$_static_match" | cut -d':' -f3)
-        TARGET_NAME=$(echo "$_static_match" | cut -d':' -f4)
+        TARGET_ALPHA=$(echo "$_static_match" | cut -d':' -f4)
+        TARGET_NAME="${TARGET_ALPHA} ($(echo "$TARGET_ISO" | tr '[:lower:]' '[:upper:]'))"
     fi
 fi
 chmod 0600 "$SETTINGS"
@@ -168,9 +165,11 @@ chmod 0600 "$SETTINGS"
 # ПРИМЕНЕНИЕ И ПЕРЕЗАПУСК Google
 # =========================================================================
 if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ]; then
+    _set_prop "gsm.sim.operator.alpha" "${TARGET_ALPHA}"
+    _set_prop "gsm.operator.alpha" "${TARGET_ALPHA}"
     _set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC}"
-    _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO}"
     _set_prop "gsm.operator.numeric" "${TARGET_NUMERIC}"
+    _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO}"
     _set_prop "gsm.operator.iso-country" "${TARGET_ISO}"
 fi
 
@@ -182,9 +181,9 @@ fi
 
 echo "Google сервисы перезапущены в фоне."
 if [ "$CURRENT_CARRIER" -eq 0 ] && [ "$NEW_ID" -ne 0 ]; then
-    echo "🚀 [Авто-режим] Динамически применен профиль: $TARGET_NAME ($TARGET_ISO)"
+    echo "🚀 [Авто-режим] Динамически применен профиль: $TARGET_NAME"
 elif [ "$NEW_ID" -eq 0 ]; then
-    echo "🚀 [Откат на Авто] Спуфинг отключен. Применены родные пропсы оператора ($TARGET_ISO)."
+    echo "🚀 [Откат на Авто] Спуфинг отключен. Применены родные пропсы оператора."
 else
     echo "🚀 [Статика] Конфигурация сохранена без изменений. Активен: $TARGET_NAME"
 fi
