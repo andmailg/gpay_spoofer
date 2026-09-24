@@ -25,7 +25,7 @@ log_msg() {
 }
 
 until [ "$(getprop sys.boot_completed)" = "1" ]; do sleep 2; done
-sleep 10
+sleep 0
 
 RAW_ISO=$(getprop ril.operator.iso-country 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]')
 [ -z "$RAW_ISO" ] && RAW_ISO=$(getprop gsm.sim.official_iso-country 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]')
