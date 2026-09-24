@@ -86,12 +86,12 @@ chmod 0600 "$SETTINGS"
 
 # Применение пропсов через спаренные строки (маскировка Dual SIM)
 if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ] && [ "$TARGET_NUMERIC" != "Неизвестно" ]; then
-    _set_prop "gsm.sim.operator.alpha" "${TARGET_ALPHA}"
-    _set_prop "gsm.operator.alpha" "${TARGET_ALPHA}"
-    _set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC}"
-    _set_prop "gsm.operator.numeric" "${TARGET_NUMERIC}"
-    _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO}"
-    _set_prop "gsm.operator.iso-country" "${TARGET_ISO}"
+    _set_prop "gsm.sim.operator.alpha" "${TARGET_ALPHA},"
+    _set_prop "gsm.operator.alpha" "${TARGET_ALPHA},"
+    _set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC},"
+    _set_prop "gsm.operator.numeric" "${TARGET_NUMERIC},"
+    _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO},"
+    _set_prop "gsm.operator.iso-country" "${TARGET_ISO},"
 fi
 
 # ==========================================
