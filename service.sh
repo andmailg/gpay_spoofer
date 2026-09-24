@@ -26,31 +26,28 @@ log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [SERVICE] $1" >> "$LOGFILE" 2>/dev/null
 }
 
-# =========================================================================
-# ОЖИДАНИЕ ИНИЦИАЛИЗАЦИИ GSM PROPS
-# =========================================================================
-PROPS_TO_CHECK="gsm.operator.numeric gsm.operator.iso-country gsm.operator.alpha gsm.sim.operator.numeric gsm.sim.operator.iso-country gsm.sim.operator.alpha"
-SLEEP_COUNT=0
+# Ждет индивидуально для каждого свойства, пока оно не станет != "," и не пустая строка,
+# после чего сразу устанавливает новое значение
+_apply_prop_when_ready() {
+    _prop_name="$1"
+    _target_val="$2"
+    _sleep_count=0
 
-while :; do
-    HAS_INVALID=0
-    for prop in $PROPS_TO_CHECK; do
-        val=$(getprop "$prop" 2>/dev/null)
-        if [ "$val" = "," ] || [ -z "$val" ]; then
-            HAS_INVALID=1
+    while :; do
+        _curr_val=$(getprop "$_prop_name" 2>/dev/null)
+        if [ "$_curr_val" != "," ] && [ -n "$_curr_val" ]; then
             break
         fi
+        sleep 1
+        _sleep_count=$((_sleep_count + 1))
     done
 
-    if [ "$HAS_INVALID" -eq 1 ]; then
-        sleep 1
-        SLEEP_COUNT=$((SLEEP_COUNT + 1))
-    else
-        break
-    fi
-done
+    _set_prop "$_prop_name" "${_target_val},"
+    log_msg "DEBUG: Prop '$_prop_name' готов (ждали ${_sleep_count}с). Установлено: '${_target_val},'"
+}
 
-log_msg "DEBUG: Ожидание GSM props завершено. Итоговый sleep: ${SLEEP_COUNT} сек."
+until [ "$(getprop sys.boot_completed)" = "1" ]; do sleep 1; done
+sleep 0
 
 RAW_ISO=$(getprop ril.operator.iso-country 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]')
 [ -z "$RAW_ISO" ] && RAW_ISO=$(getprop gsm.sim.official_iso-country 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]')
@@ -125,12 +122,13 @@ fi
 
 log_msg "DEBUG: NUMERIC='$TARGET_NUMERIC', ISO='$TARGET_ISO', ALPHA='$TARGET_ALPHA'"
 
-_set_prop "gsm.sim.operator.alpha" "${TARGET_ALPHA},"
-_set_prop "gsm.operator.alpha" "${TARGET_ALPHA},"
-_set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC},"
-_set_prop "gsm.operator.numeric" "${TARGET_NUMERIC},"
-_set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO},"
-_set_prop "gsm.operator.iso-country" "${TARGET_ISO},"
+# Последовательное индивидуальное ожидание и применение каждому свойству
+_apply_prop_when_ready "gsm.sim.operator.alpha" "$TARGET_ALPHA"
+_apply_prop_when_ready "gsm.operator.alpha" "$TARGET_ALPHA"
+_apply_prop_when_ready "gsm.sim.operator.numeric" "$TARGET_NUMERIC"
+_apply_prop_when_ready "gsm.operator.numeric" "$TARGET_NUMERIC"
+_apply_prop_when_ready "gsm.sim.operator.iso-country" "$TARGET_ISO"
+_apply_prop_when_ready "gsm.operator.iso-country" "$TARGET_ISO"
 
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
     log_msg "🤖 [Авто-режим] Успешно применен профиль: $TARGET_NAME"
