@@ -26,13 +26,16 @@ log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [SERVICE] $1" >> "$LOGFILE" 2>/dev/null
 }
 
-# Ждет индивидуально для каждого свойства, пока оно не станет != "," и не пустая строка,
-# после чего сразу устанавливает новое значение
-_apply_prop_when_ready() {
+# 1. Ждёт готовности пропса
+# 2. Делает бэкап оригинального значения (если бэкап ещё не содержит ключ)
+# 3. Сразу перезаписывает новым целевым значением
+_process_prop() {
     _prop_name="$1"
-    _target_val="$2"
+    _key_name="$2"
+    _target_val="$3"
     _sleep_count=0
 
+    # Ожидание инициализации свойства
     while :; do
         _curr_val=$(getprop "$_prop_name" 2>/dev/null)
         if [ "$_curr_val" != "," ] && [ -n "$_curr_val" ]; then
@@ -42,38 +45,21 @@ _apply_prop_when_ready() {
         _sleep_count=$((_sleep_count + 1))
     done
 
+    # Бэкап первого чистого значения
+    _clean_orig=$(echo "$_curr_val" | cut -d',' -f1)
+    if [ -n "$_clean_orig" ] && [ "$_clean_orig" != "," ]; then
+        if ! grep -q "^${_key_name}=" "$PROPS_FILE" 2>/dev/null; then
+            echo "${_key_name}=\"${_clean_orig}\"" >> "$PROPS_FILE"
+            chmod 0600 "$PROPS_FILE" 2>/dev/null
+        fi
+    fi
+
+    # Мгновенная перезапись целевым значением
     _set_prop "$_prop_name" "${_target_val},"
-    log_msg "DEBUG: Prop '$_prop_name' готов (ждали ${_sleep_count}с). Установлено: '${_target_val},'"
+    log_msg "DEBUG: Prop '$_prop_name' готов (ждали ${_sleep_count}с). Спуф: '${_target_val},'"
 }
 
-until [ "$(getprop sys.boot_completed)" = "1" ]; do sleep 1; done
-sleep 0
-
-RAW_ISO=$(getprop ril.operator.iso-country 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]')
-[ -z "$RAW_ISO" ] && RAW_ISO=$(getprop gsm.sim.official_iso-country 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]')
-
-case "$RAW_ISO" in
-    *ru* | *by* | "") ;;
-    *) log_msg "Пропущено. Иностранная SIM: '$RAW_ISO'."; exit 0 ;;
-esac
-
-# Бэкап оригинальных системных пропсов оператора
-CURRENT_SYSTEM_NUMERIC=$(getprop gsm.operator.numeric | cut -d',' -f1)
-CURRENT_SYSTEM_ISO=$(getprop gsm.sim.operator.iso-country | cut -d',' -f1)
-CURRENT_SYSTEM_ALPHA=$(getprop gsm.operator.alpha | cut -d',' -f1)
-
-if [ -n "$CURRENT_SYSTEM_NUMERIC" ] && [ -n "$CURRENT_SYSTEM_ISO" ]; then
-    LAST_SAVED_CARRIER=$(grep '^selected_carrier=' "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | head -n 1)
-    case "$LAST_SAVED_CARRIER" in *[!0-9]*|"") LAST_SAVED_CARRIER=0 ;; esac
-    if [ "$LAST_SAVED_CARRIER" -eq 0 ] || [ ! -f "$PROPS_FILE" ]; then
-        echo "ORIG_NUMERIC=\"$CURRENT_SYSTEM_NUMERIC\"" > "$PROPS_FILE"
-        echo "ORIG_ISO=\"$CURRENT_SYSTEM_ISO\"" >> "$PROPS_FILE"
-        echo "ORIG_ALPHA=\"$CURRENT_SYSTEM_ALPHA\"" >> "$PROPS_FILE"
-        chmod 0600 "$PROPS_FILE"
-    fi
-fi
-
-# Получаем текущий выбранный профиль
+# Определяем профиль для подмены
 SELECTED_CARRIER=$(grep '^selected_carrier=' "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | head -n 1)
 case "$SELECTED_CARRIER" in *[!0-9]*|"") SELECTED_CARRIER=0 ;; esac
 
@@ -120,15 +106,18 @@ else
     fi
 fi
 
-log_msg "DEBUG: NUMERIC='$TARGET_NUMERIC', ISO='$TARGET_ISO', ALPHA='$TARGET_ALPHA'"
+log_msg "DEBUG: Целевые значения -> NUMERIC='$TARGET_NUMERIC', ISO='$TARGET_ISO', ALPHA='$TARGET_ALPHA'"
 
-# Последовательное индивидуальное ожидание и применение каждому свойству
-_apply_prop_when_ready "gsm.sim.operator.alpha" "$TARGET_ALPHA"
-_apply_prop_when_ready "gsm.operator.alpha" "$TARGET_ALPHA"
-_apply_prop_when_ready "gsm.sim.operator.numeric" "$TARGET_NUMERIC"
-_apply_prop_when_ready "gsm.operator.numeric" "$TARGET_NUMERIC"
-_apply_prop_when_ready "gsm.sim.operator.iso-country" "$TARGET_ISO"
-_apply_prop_when_ready "gsm.operator.iso-country" "$TARGET_ISO"
+# Создаем бэкап-файл, если его еще нет
+[ ! -f "$PROPS_FILE" ] && touch "$PROPS_FILE"
+
+# Поштучно ждем, бэкапим оригиналы и сразу перезаписываем
+_process_prop "gsm.sim.operator.alpha" "ORIG_ALPHA" "$TARGET_ALPHA"
+_process_prop "gsm.operator.alpha" "ORIG_OPERATOR_ALPHA" "$TARGET_ALPHA"
+_process_prop "gsm.sim.operator.numeric" "ORIG_SIM_NUMERIC" "$TARGET_NUMERIC"
+_process_prop "gsm.operator.numeric" "ORIG_NUMERIC" "$TARGET_NUMERIC"
+_process_prop "gsm.sim.operator.iso-country" "ORIG_ISO" "$TARGET_ISO"
+_process_prop "gsm.operator.iso-country" "ORIG_OPERATOR_ISO" "$TARGET_ISO"
 
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
     log_msg "🤖 [Авто-режим] Успешно применен профиль: $TARGET_NAME"
