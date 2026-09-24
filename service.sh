@@ -24,8 +24,32 @@ log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [SERVICE] $1" >> "$LOGFILE" 2>/dev/null
 }
 
-until [ "$(getprop sys.boot_completed)" = "1" ]; do sleep 2; done
-sleep 0
+# Список пропсов для проверки
+PROPS="gsm.operator.numeric gsm.operator.iso-country gsm.operator.alpha gsm.sim.operator.numeric gsm.sim.operator.iso-country gsm.sim.operator.alpha"
+
+SLEEP_COUNT=0
+
+while :; do
+    HAS_INVALID=0
+
+    for prop in $PROPS; do
+        val=$(getprop "$prop" 2>/dev/null)
+        if [ "$val" = "," ] || [ -z "$val" ]; then
+            HAS_INVALID=1
+            break
+        fi
+    done
+
+    if [ "$HAS_INVALID" -eq 1 ]; then
+        sleep 1
+        SLEEP_COUNT=$((SLEEP_COUNT + 1))
+    else
+        break
+    fi
+done
+
+log_msg "DEBUG: Ожидание завершено. Итоговый sleep: ${SLEEP_COUNT} сек.[span_1](start_span)"[span_1](end_span)
+
 
 RAW_ISO=$(getprop ril.operator.iso-country 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]')
 [ -z "$RAW_ISO" ] && RAW_ISO=$(getprop gsm.sim.official_iso-country 2>/dev/null | tr -d ' ' | tr '[:upper:]' '[:lower:]')
