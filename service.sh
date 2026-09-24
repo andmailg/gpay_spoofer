@@ -98,12 +98,12 @@ fi
 
 log_msg "DEBUG: NUMERIC='$TARGET_NUMERIC', ISO='$TARGET_ISO', ALPHA='$TARGET_ALPHA'"
 
-_set_prop "gsm.sim.operator.alpha" "${TARGET_ALPHA}"
-_set_prop "gsm.operator.alpha" "${TARGET_ALPHA}"
-_set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC}"
-_set_prop "gsm.operator.numeric" "${TARGET_NUMERIC}"
-_set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO}"
-_set_prop "gsm.operator.iso-country" "${TARGET_ISO}"
+_set_prop "gsm.sim.operator.alpha" "${TARGET_ALPHA},"
+_set_prop "gsm.operator.alpha" "${TARGET_ALPHA},"
+_set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC},"
+_set_prop "gsm.operator.numeric" "${TARGET_NUMERIC},"
+_set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO},"
+_set_prop "gsm.operator.iso-country" "${TARGET_ISO},"
 
 if [ "$SELECTED_CARRIER" -eq 0 ]; then
     log_msg "🤖 [Авто-режим] Успешно применен профиль: $TARGET_NAME"
