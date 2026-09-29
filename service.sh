@@ -1,11 +1,16 @@
 #!/system/bin/sh
 # shellcheck shell=sh
+# Сохраните в папку модуля как service.sh (права 755)
 
 MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
 CARRIERS_DB="$MODDIR/carriers.db"
 LOGFILE="$MODDIR/Gpay-Spoofer.log"
 PROPS_FILE="$MODDIR/original_props"
+
+INTERVAL=20     # секунд между проверками
+LOG_KEEP=200    # сколько строк лога оставлять при старте
+SUFFIX=","      # формат значения (как в исходном скрипте: "lv,"); "" для одного слота
 
 _set_prop() {
     if command -v resetprop >/dev/null 2>&1; then
@@ -19,108 +24,107 @@ _set_prop() {
     else
         setprop "$1" "$2"
     fi
-    sleep 0.1 
 }
 
 log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [SERVICE] $1" >> "$LOGFILE" 2>/dev/null
 }
 
-# 1. Ждёт готовности пропса
-# 2. Делает бэкап оригинального значения (если бэкап ещё не содержит ключ)
-# 3. Сразу перезаписывает новым целевым значением
-_process_prop() {
-    _prop_name="$1"
-    _key_name="$2"
-    _target_val="$3"
-    _sleep_count=0
+get_setting() {
+    grep "^$1=" "$SETTINGS" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '\r'
+}
 
-    # Ожидание инициализации свойства
-    while :; do
-        _curr_val=$(getprop "$_prop_name" 2>/dev/null)
-        if [ "$_curr_val" != "," ] && [ -n "$_curr_val" ]; then
-            break
-        fi
-        sleep 1
-        _sleep_count=$((_sleep_count + 1))
-    done
+# Заполняет MODE, SEL, TARGET_*; возвращает 1, если профиль определить не удалось
+resolve_target() {
+    TARGET_NUMERIC=""; TARGET_ISO=""; TARGET_ALPHA=""; TARGET_NAME=""; MODE=""
+    SEL=$(get_setting selected_carrier | tr -d ' ')
+    case "$SEL" in *[!0-9]*|"") SEL=0 ;; esac
 
-    # Бэкап первого чистого значения
-    _clean_orig=$(echo "$_curr_val" | cut -d',' -f1)
-    if [ -n "$_clean_orig" ] && [ "$_clean_orig" != "," ]; then
-        if ! grep -q "^${_key_name}=" "$PROPS_FILE" 2>/dev/null; then
-            echo "${_key_name}=\"${_clean_orig}\"" >> "$PROPS_FILE"
+    if [ "$SEL" -eq 0 ]; then
+        MODE="auto"
+        _iso=$(get_setting last_searched_iso | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+        [ -n "$_iso" ] || return 1
+        _row=$(awk -F: -v i="$_iso" 'tolower($3)==i{print; exit}' "$CARRIERS_DB" 2>/dev/null)
+    else
+        MODE="static"
+        _row=$(awk -F: -v i="$SEL" '$1==i{print; exit}' "$CARRIERS_DB" 2>/dev/null)
+    fi
+    [ -n "$_row" ] || return 1
+
+    TARGET_NUMERIC=$(echo "$_row" | cut -d':' -f2)
+    TARGET_ISO=$(echo "$_row" | cut -d':' -f3)
+    TARGET_ALPHA=$(echo "$_row" | cut -d':' -f4)
+    [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ] || return 1
+
+    _iso_up=$(echo "$TARGET_ISO" | tr '[:lower:]' '[:upper:]')
+    TARGET_NAME="${TARGET_ALPHA} (${_iso_up})"
+    return 0
+}
+
+# ensure_prop <prop> <ключ бэкапа> <целевое значение>
+# Не блокирует: если свойство ещё пустое (нет SIM/сети), пропускает до следующего цикла.
+ensure_prop() {
+    _p="$1"; _k="$2"; _want="${3}${SUFFIX}"
+    _cur=$(getprop "$_p" 2>/dev/null)
+
+    if [ -z "$_cur" ] || [ "$_cur" = "," ]; then
+        return 1
+    fi
+    [ "$_cur" = "$_want" ] && return 0
+
+    # Бэкап первого «чистого» значения за эту загрузку
+    if ! grep -q "^${_k}=" "$PROPS_FILE" 2>/dev/null; then
+        _orig=$(echo "$_cur" | cut -d',' -f1)
+        if [ -n "$_orig" ]; then
+            echo "${_k}=\"${_orig}\"" >> "$PROPS_FILE"
             chmod 0600 "$PROPS_FILE" 2>/dev/null
         fi
     fi
 
-    # Мгновенная перезапись целевым значением
-    _set_prop "$_prop_name" "${_target_val},"
-    log_msg "DEBUG: Prop '$_prop_name' готов (ждали ${_sleep_count}с). Спуф: '${_target_val},'"
+    _set_prop "$_p" "$_want"
+    CHANGED=$((CHANGED + 1))
+    return 0
 }
 
-# Определяем профиль для подмены
-SELECTED_CARRIER=$(grep '^selected_carrier=' "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | head -n 1)
-case "$SELECTED_CARRIER" in *[!0-9]*|"") SELECTED_CARRIER=0 ;; esac
+{
+# Обрезаем лог
+if [ -f "$LOGFILE" ]; then
+    tail -n "$LOG_KEEP" "$LOGFILE" > "$LOGFILE.tmp" 2>/dev/null && mv "$LOGFILE.tmp" "$LOGFILE"
+fi
+log_msg "GPay-Spoofer запущен"
 
-TARGET_NUMERIC=""
-TARGET_ISO=""
-TARGET_ALPHA=""
-TARGET_NAME=""
+# Свойства сбрасываются при перезагрузке, поэтому бэкап ведём заново за каждую загрузку
+: > "$PROPS_FILE"
+chmod 0600 "$PROPS_FILE" 2>/dev/null
 
-if [ "$SELECTED_CARRIER" -eq 0 ]; then
-    # =========================================================================
-    # ВЕТКА 1: РЕЖИМ АВТО
-    # =========================================================================
-    LAST_SEARCHED_ISO=$(grep '^last_searched_iso=' "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | head -n 1 | tr -d '\r ' | tr '[:upper:]' '[:lower:]')
-    if [ -n "$LAST_SEARCHED_ISO" ]; then
-        _match=$(grep ":${LAST_SEARCHED_ISO}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
-        if [ -n "$_match" ]; then
-            TARGET_NUMERIC=$(echo "$_match" | cut -d':' -f2)
-            TARGET_ISO=$(echo "$_match" | cut -d':' -f3)
-            TARGET_ALPHA=$(echo "$_match" | cut -d':' -f4)
-            TARGET_ISO_UPPER=$(echo "$TARGET_ISO" | tr '[:lower:]' '[:upper:]')
-            TARGET_NAME="${TARGET_ALPHA} (${TARGET_ISO_UPPER})"
-            log_msg "🤖 Режим Авто: Нацелен регион [$LAST_SEARCHED_ISO] -> $TARGET_NAME"
+last_msg=""
+
+while :; do
+    if resolve_target; then
+        last_msg=""
+        CHANGED=0
+        ensure_prop "gsm.sim.operator.alpha"        "ORIG_ALPHA"          "$TARGET_ALPHA"
+        ensure_prop "gsm.operator.alpha"            "ORIG_OPERATOR_ALPHA" "$TARGET_ALPHA"
+        ensure_prop "gsm.sim.operator.numeric"      "ORIG_SIM_NUMERIC"    "$TARGET_NUMERIC"
+        ensure_prop "gsm.operator.numeric"          "ORIG_NUMERIC"        "$TARGET_NUMERIC"
+        ensure_prop "gsm.sim.operator.iso-country"  "ORIG_ISO"            "$TARGET_ISO"
+        ensure_prop "gsm.operator.iso-country"      "ORIG_OPERATOR_ISO"   "$TARGET_ISO"
+
+        if [ "$CHANGED" -gt 0 ]; then
+            log_msg "🚀 [$MODE] Применён профиль: $TARGET_NAME (обновлено свойств: $CHANGED)"
+        fi
+    else
+        if [ "$SEL" -eq 0 ]; then
+            _msg="ℹ️ Режим Авто: регион не задан или отсутствует в БД. Спуфинг спит."
+        else
+            _msg="❌ Статический профиль [$SEL] не найден или повреждён в БД."
+        fi
+        if [ "$_msg" != "$last_msg" ]; then
+            log_msg "$_msg"
+            last_msg="$_msg"
         fi
     fi
-    if [ -z "$TARGET_NUMERIC" ] || [ -z "$TARGET_ISO" ]; then
-        log_msg "ℹ️ Режим Авто: Список пуст или регион отсутствует в БД. Спуфинг спит."
-        exit 0
-    fi
-else
-    # =========================================================================
-    # ВЕТКА 2: СТАТИКА
-    # =========================================================================
-    _match=$(grep "^${SELECTED_CARRIER}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
-    if [ -n "$_match" ]; then
-        TARGET_NUMERIC=$(echo "$_match" | cut -d':' -f2)
-        TARGET_ISO=$(echo "$_match" | cut -d':' -f3)
-        TARGET_ALPHA=$(echo "$_match" | cut -d':' -f4)
-        TARGET_ISO_UPPER=$(echo "$TARGET_ISO" | tr '[:lower:]' '[:upper:]')
-        TARGET_NAME="${TARGET_ALPHA} (${TARGET_ISO_UPPER})"
-    fi
-    if [ -z "$TARGET_NUMERIC" ] || [ -z "$TARGET_ISO" ]; then
-        log_msg "❌ Ошибка: Статический профиль [$SELECTED_CARRIER] поврежден в БД."
-        exit 1
-    fi
-fi
 
-log_msg "DEBUG: Целевые значения -> NUMERIC='$TARGET_NUMERIC', ISO='$TARGET_ISO', ALPHA='$TARGET_ALPHA'"
-
-# Создаем бэкап-файл, если его еще нет
-[ ! -f "$PROPS_FILE" ] && touch "$PROPS_FILE"
-
-# Поштучно ждем, бэкапим оригиналы и сразу перезаписываем
-_process_prop "gsm.sim.operator.alpha" "ORIG_ALPHA" "$TARGET_ALPHA"
-_process_prop "gsm.operator.alpha" "ORIG_OPERATOR_ALPHA" "$TARGET_ALPHA"
-_process_prop "gsm.sim.operator.numeric" "ORIG_SIM_NUMERIC" "$TARGET_NUMERIC"
-_process_prop "gsm.operator.numeric" "ORIG_NUMERIC" "$TARGET_NUMERIC"
-_process_prop "gsm.sim.operator.iso-country" "ORIG_ISO" "$TARGET_ISO"
-_process_prop "gsm.operator.iso-country" "ORIG_OPERATOR_ISO" "$TARGET_ISO"
-
-if [ "$SELECTED_CARRIER" -eq 0 ]; then
-    log_msg "🤖 [Авто-режим] Успешно применен профиль: $TARGET_NAME"
-else
-    log_msg "🚀 [Статика] Успешно применен профиль [$SELECTED_CARRIER]: $TARGET_NAME"
-fi
+    sleep "$INTERVAL"
+done
+} &
