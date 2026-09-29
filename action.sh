@@ -1,11 +1,13 @@
 #!/system/bin/sh
-MODDIR="/data/adb/modules/gpay-spoofer"
-[ ! -d "$MODDIR" ] && MODDIR="${0%/*}"
+# shellcheck shell=sh
+# GPay-Spoofer: action.sh (переключение профилей по кругу)
 
+MODDIR="${0%/*}"
 SETTINGS="$MODDIR/settings"
 CARRIERS_DB="$MODDIR/carriers.db"
 LOGFILE="$MODDIR/Gpay-Spoofer.log"
 PROPS_FILE="$MODDIR/original_props"
+SUFFIX=","   # должен совпадать со значением в service.sh
 
 echo "=== GPAY SPOOFER ==="
 
@@ -27,75 +29,97 @@ log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ACTION] $1" >> "$LOGFILE" 2>/dev/null
 }
 
+get_setting() {
+    grep "^$1=" "$SETTINGS" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '\r '
+}
+
+# Значение из бэкапа по ключу (пусто, если нет)
+_orig() {
+    grep "^$1=" "$PROPS_FILE" 2>/dev/null | head -n 1 | cut -d'"' -f2 | tr -d '\r'
+}
+
+# restore <prop> <ключ бэкапа>: возвращает свойство в исходное значение, если оно есть в бэкапе
+restore() {
+    _v=$(_orig "$2")
+    if [ -n "$_v" ]; then
+        _set_prop "$1" "${_v}${SUFFIX}"
+        RESTORED=$((RESTORED + 1))
+    fi
+}
+
 if [ ! -f "$CARRIERS_DB" ]; then
     echo "ОШИБКА: Файл базы данных не найден!"
     exit 1
 fi
 
-TOTAL_CARRIERS=$(grep -c "^[0-9]" "$CARRIERS_DB" 2>/dev/null | tr -d '\r')
-case "$TOTAL_CARRIERS" in ''|*[!0-9]*) TOTAL_CARRIERS=0 ;; esac
-TOTAL_STATES=$((TOTAL_CARRIERS + 1))
-
-# Получаем текущее состояние
-CURRENT=$(grep '^selected_carrier=' "$SETTINGS" 2>/dev/null | cut -d'=' -f2 | head -n 1 | tr -d '\r ')
+# Текущее состояние
+CURRENT=$(get_setting selected_carrier)
 case "$CURRENT" in *[!0-9]*|"") CURRENT=0 ;; esac
 
-# Рассчитываем индекс следующего профиля по кругу
-NEW_CARRIER=$(( (CURRENT + 1) % TOTAL_STATES ))
-
-# Загружаем оригинальные пропсы для отката
-if [ -f "$PROPS_FILE" ]; then
-    ORIG_NUMERIC=$(grep '^ORIG_NUMERIC=' "$PROPS_FILE" | cut -d'"' -f2 | tr -d '\r')
-    ORIG_ISO=$(grep '^ORIG_ISO=' "$PROPS_FILE" | cut -d'"' -f2 | tr -d '\r')
-    ORIG_ALPHA=$(grep '^ORIG_ALPHA=' "$PROPS_FILE" | cut -d'"' -f2 | tr -d '\r')
-else
-    ORIG_NUMERIC="Неизвестно"
-    ORIG_ISO="Неизвестно"
-    ORIG_ALPHA="Неизвестно"
-fi
+# Следующий id из БД по возрастанию; после последнего возвращаемся к 0 (Авто)
+NEW_CARRIER=$(awk -F: -v c="$CURRENT" '
+/^[0-9]+:/ { gsub(/\r/, ""); ids[++n] = $1 }
+END {
+    for (i = 1; i <= n; i++) if (ids[i] + 0 > c + 0) { print ids[i]; exit }
+    print 0
+}' "$CARRIERS_DB")
+case "$NEW_CARRIER" in *[!0-9]*|"") NEW_CARRIER=0 ;; esac
 
 NEW_ISO=""
 TARGET_NUMERIC=""
 TARGET_ISO=""
 TARGET_ALPHA=""
 TARGET_NAME=""
+RESTORED=0
 
-# =========================================================================
-# ПРИМЕНЕНИЕ ОБНОВЛЕННОЙ АРХИТЕКТУРЫ СИНХРОНИЗАЦИИ ПЕРЕМЕННЫХ
-# =========================================================================
 if [ "$NEW_CARRIER" -eq 0 ]; then
+    # ---------- Авто: откат к родным значениям ----------
     TARGET_NAME="Спуфинг ОТКЛЮЧЕН (Режим Авто)"
-    TARGET_NUMERIC="$ORIG_NUMERIC"
-    TARGET_ISO="$ORIG_ISO"
-    TARGET_ALPHA="$ORIG_ALPHA"
     NEW_ISO=""
+
+    restore gsm.sim.operator.alpha       ORIG_ALPHA
+    restore gsm.operator.alpha           ORIG_OPERATOR_ALPHA
+    restore gsm.sim.operator.numeric     ORIG_SIM_NUMERIC
+    restore gsm.operator.numeric         ORIG_NUMERIC
+    restore gsm.sim.operator.iso-country ORIG_ISO
+    restore gsm.operator.iso-country     ORIG_OPERATOR_ISO
+
+    TARGET_NUMERIC=$(_orig ORIG_NUMERIC)
+    TARGET_ISO=$(_orig ORIG_ISO)
+    TARGET_ALPHA=$(_orig ORIG_ALPHA)
 else
-    _match=$(grep "^${NEW_CARRIER}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
-    if [ -n "$_match" ]; then
-        TARGET_NUMERIC=$(echo "$_match" | cut -d':' -f2 | tr -d '\r')
-        TARGET_ISO=$(echo "$_match" | cut -d':' -f3 | tr -d '\r')
-        TARGET_ALPHA=$(echo "$_match" | cut -d':' -f4 | tr -d '\r')
-        TARGET_NAME="${TARGET_ALPHA} ($(echo "$TARGET_ISO" | tr '[:lower:]' '[:upper:]'))"
-        NEW_ISO="$TARGET_ISO"
+    # ---------- Статика: применяем профиль ----------
+    _match=$(awk -F: -v i="$NEW_CARRIER" '{ gsub(/\r/, "") } $1==i { print; exit }' "$CARRIERS_DB")
+    TARGET_NUMERIC=$(echo "$_match" | cut -d':' -f2)
+    TARGET_ISO=$(echo "$_match" | cut -d':' -f3)
+    TARGET_ALPHA=$(echo "$_match" | cut -d':' -f4)
+
+    if [ -z "$TARGET_NUMERIC" ] || [ -z "$TARGET_ISO" ]; then
+        echo "ОШИБКА: профиль [$NEW_CARRIER] не найден или повреждён в БД. Настройки не изменены."
+        log_msg "Ошибка: профиль [$NEW_CARRIER] не найден или повреждён"
+        exit 1
     fi
+
+    TARGET_NAME="${TARGET_ALPHA} ($(echo "$TARGET_ISO" | tr '[:lower:]' '[:upper:]'))"
+    NEW_ISO="$TARGET_ISO"
+
+    _set_prop "gsm.sim.operator.alpha"       "${TARGET_ALPHA}${SUFFIX}"
+    _set_prop "gsm.operator.alpha"           "${TARGET_ALPHA}${SUFFIX}"
+    _set_prop "gsm.sim.operator.numeric"     "${TARGET_NUMERIC}${SUFFIX}"
+    _set_prop "gsm.operator.numeric"         "${TARGET_NUMERIC}${SUFFIX}"
+    _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO}${SUFFIX}"
+    _set_prop "gsm.operator.iso-country"     "${TARGET_ISO}${SUFFIX}"
 fi
 
-# Перезапись файла настроек
-printf "selected_carrier=%s\nlast_searched_iso=%s\n" "$NEW_CARRIER" "$NEW_ISO" > "$SETTINGS"
-chmod 0600 "$SETTINGS"
-
-# Применение пропсов через спаренные строки (маскировка Dual SIM)
-if [ -n "$TARGET_NUMERIC" ] && [ -n "$TARGET_ISO" ] && [ "$TARGET_NUMERIC" != "Неизвестно" ]; then
-    _set_prop "gsm.sim.operator.alpha" "${TARGET_ALPHA},"
-    _set_prop "gsm.operator.alpha" "${TARGET_ALPHA},"
-    _set_prop "gsm.sim.operator.numeric" "${TARGET_NUMERIC},"
-    _set_prop "gsm.operator.numeric" "${TARGET_NUMERIC},"
-    _set_prop "gsm.sim.operator.iso-country" "${TARGET_ISO},"
-    _set_prop "gsm.operator.iso-country" "${TARGET_ISO},"
-fi
+# Запись настроек: остальные ключи сохраняются
+{
+    grep -v -e '^selected_carrier=' -e '^last_searched_iso=' "$SETTINGS" 2>/dev/null
+    printf "selected_carrier=%s\nlast_searched_iso=%s\n" "$NEW_CARRIER" "$NEW_ISO"
+} > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+chmod 0600 "$SETTINGS" 2>/dev/null
 
 # ==========================================
-# ВЫВОД ИНТЕРАКТИВНОГО СПИСКА В ТЕРМИНАЛ
+# СПИСОК ПРОФИЛЕЙ
 # ==========================================
 echo "-----------------------------------"
 echo "СПИСОК ПРОФИЛЕЙ:"
@@ -106,10 +130,9 @@ else
     echo "   Режим Авто (Используются родные пропсы)"
 fi
 
-# Обработка базы за один проход в памяти
-awk -v active="$NEW_CARRIER" '
-BEGIN { FS=":"; RS="\r?\n" }
-/^[0-9]+/ {
+awk -F: -v active="$NEW_CARRIER" '
+{ gsub(/\r/, "") }
+/^[0-9]+:/ {
     id = $1
     iso = toupper($3)
     alpha = $4
@@ -121,19 +144,26 @@ BEGIN { FS=":"; RS="\r?\n" }
 }
 ' "$CARRIERS_DB"
 
-# Вывод информации для пользователя в лог терминала Magisk
 echo "-----------------------------------"
 echo "УСПЕШНО ПЕРЕКЛЮЧЕНО!"
 echo "Профиль: [$NEW_CARRIER] $TARGET_NAME"
-echo "Numeric: $TARGET_NUMERIC | ISO: $TARGET_ISO | Alpha: $TARGET_ALPHA"
+if [ "$NEW_CARRIER" -eq 0 ]; then
+    if [ "$RESTORED" -eq 0 ]; then
+        echo "Внимание: бэкап оригинальных значений пуст, откат не выполнен."
+        echo "Свойства вернутся к родным после перезагрузки."
+    else
+        echo "Восстановлено свойств: $RESTORED"
+    fi
+else
+    echo "Numeric: $TARGET_NUMERIC | ISO: $TARGET_ISO | Alpha: $TARGET_ALPHA"
+fi
 echo "-----------------------------------"
-log_msg "Переключение профиля: [$NEW_CARRIER] $TARGET_NAME"
+log_msg "Переключение профиля: [$NEW_CARRIER] $TARGET_NAME (восстановлено: $RESTORED)"
 
-# Асинхронный сброс кэша сервисов Google
+# Асинхронный перезапуск сервисов Google
 (
     am force-stop com.android.vending
     am force-stop com.google.android.apps.walletnfcrel
-    pm trim-caches 999G
 ) >/dev/null 2>&1 &
 
 echo "Google сервисы перезапущены в фоне."
