@@ -1,5 +1,15 @@
 #!/system/bin/sh
+# shellcheck shell=sh
+# GPay-Spoofer: customize.sh (выбор профиля при установке)
+
 CARRIERS_DB="$MODPATH/carriers.db"
+OLD_DB="/data/adb/modules/$MODID/carriers.db"
+KEY_TIMEOUT=15   # секунд ожидания на каждый пункт меню
+
+# Сохраняем пользовательскую базу при обновлении модуля
+if [ ! -f "$CARRIERS_DB" ] && [ -f "$OLD_DB" ]; then
+    cp "$OLD_DB" "$CARRIERS_DB"
+fi
 
 if [ ! -f "$CARRIERS_DB" ]; then
     cat << 'EOF' > "$CARRIERS_DB"
@@ -38,77 +48,93 @@ if [ ! -f "$CARRIERS_DB" ]; then
 EOF
 fi
 
-# Функция отслеживания нажатия кнопок (громкость + / громкость -)
+# Читает одно событие getevent максимум ~1 секунду (работает и без утилиты timeout)
+_read_event() {
+    _dir="${TMPDIR:-/dev/tmp}"
+    mkdir -p "$_dir" 2>/dev/null
+    _tmp="$_dir/gpay_ev.$$"
+    : > "$_tmp"
+    getevent -lqc 1 > "$_tmp" 2>/dev/null &
+    _pid=$!
+    _i=0
+    while [ "$_i" -lt 10 ] && kill -0 "$_pid" 2>/dev/null; do
+        sleep 0.1
+        _i=$((_i + 1))
+    done
+    kill "$_pid" 2>/dev/null
+    cat "$_tmp" 2>/dev/null
+    rm -f "$_tmp"
+}
+
+# Возврат: 0 = громкость ПЛЮС, 1 = громкость МИНУС, 2 = таймаут
 choose_key() {
     if command -v key_check >/dev/null 2>&1; then
         key_check; return $?
     fi
     if ! command -v getevent >/dev/null 2>&1; then
-        ui_print "⚠️ getevent не найден! Автовыбор через 3 секунды..."
-        sleep 3; return 1
+        ui_print "⚠️ getevent не найден! Выбран текущий пункт."
+        return 2
     fi
-    _count=0
-    while [ "$_count" -lt 150 ]; do
-        _event=$(getevent -ql -c 1 2>/dev/null | head -n 1)
-        [ -z "$_event" ] && _event=$(getevent -c 1 2>/dev/null | head -n 1)
+    _end=$(( $(date +%s) + KEY_TIMEOUT ))
+    while [ "$(date +%s)" -lt "$_end" ]; do
+        _event=$(_read_event)
         case "$_event" in
-            *KEY_VOLUMEUP*DOWN* | *0001*0073*00000001*) return 0 ;;
-            *KEY_VOLUMEDOWN*DOWN* | *0001*0072*00000001*) return 1 ;;
+            *KEY_VOLUMEUP*DOWN*)   return 0 ;;
+            *KEY_VOLUMEDOWN*DOWN*) return 1 ;;
         esac
-        sleep 0.1
-        _count=$((_count + 1))
     done
-    return 1
+    return 2
 }
 
-TOTAL_CARRIERS=$(grep -c "^[0-9]" "$CARRIERS_DB" 2>/dev/null || echo "32")
-case "$TOTAL_CARRIERS" in ''|*[!0-9]*) TOTAL_CARRIERS=32 ;; esac
+# Список реальных id: 0 (Авто) + все id из базы
+IDS="0 $(awk -F: '/^[0-9]+:/ { gsub(/\r/, ""); printf "%s ", $1 }' "$CARRIERS_DB")"
+TOTAL_STATES=$(echo "$IDS" | wc -w)
 
 ui_print " "
 ui_print "==================================="
 ui_print " [Громкость МИНУС] — Далее"
 ui_print " [Громкость ПЛЮС]  — Выбрать"
-ui_print " (Таймаут автовыбора: 15 секунд)"
+ui_print " (Нет нажатия ${KEY_TIMEOUT} с — выбран текущий пункт)"
 ui_print "==================================="
 
-MENU_INDEX=0
-TOTAL_STATES=$((TOTAL_CARRIERS + 1))
+POS=0
+SELECTED_CARRIER=0
 
 while true; do
+    MENU_INDEX=$(echo "$IDS" | awk -v n="$((POS + 1))" '{ print $n }')
+
     if [ "$MENU_INDEX" -eq 0 ]; then
         CURRENT_NAME="Оригинальные значения (Режим Авто)"
     else
         CURRENT_NAME="Неизвестный профиль"
-        _match=$(grep "^${MENU_INDEX}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
+        _match=$(awk -F: -v i="$MENU_INDEX" '{ gsub(/\r/, "") } $1==i { print; exit }' "$CARRIERS_DB")
         if [ -n "$_match" ]; then
             _iso=$(echo "$_match" | cut -d':' -f3 | tr '[:lower:]' '[:upper:]')
             _alpha=$(echo "$_match" | cut -d':' -f4)
             CURRENT_NAME="${_alpha} (${_iso})"
         fi
     fi
-    
+
     ui_print "-> Выбор: $CURRENT_NAME"
-    if choose_key; then
-        SELECTED_CARRIER="$MENU_INDEX"
-        break
-    else
-        MENU_INDEX=$(( (MENU_INDEX + 1) % TOTAL_STATES ))
-    fi
+    choose_key
+    _rc=$?
+    case "$_rc" in
+        0|2) SELECTED_CARRIER="$MENU_INDEX"; break ;;
+        *)   POS=$(( (POS + 1) % TOTAL_STATES )) ;;
+    esac
 done
 
-# =========================================================================
-# НОВАЯ ЛОГИКА СИНХРОНИЗАЦИИ ПЕРЕМЕННЫХ НА ОСНОВЕ ВЫБОРА ПОЛЬЗОВАТЕЛЯ
-# =========================================================================
+# Регион выбранного профиля для режима авто-подстановки
 NEW_ISO=""
 if [ "$SELECTED_CARRIER" -ne 0 ]; then
-    _match=$(grep "^${SELECTED_CARRIER}:" "$CARRIERS_DB" 2>/dev/null | head -n 1)
-    [ -n "$_match" ] && NEW_ISO=$(echo "$_match" | cut -d':' -f3 | tr -d '\r ')
+    _match=$(awk -F: -v i="$SELECTED_CARRIER" '{ gsub(/\r/, "") } $1==i { print; exit }' "$CARRIERS_DB")
+    NEW_ISO=$(echo "$_match" | cut -d':' -f3 | tr -d '\r ')
 fi
 
-# Инициализируем файл settings с жестко заданной двухстрочной структурой
+# Файл settings
 printf 'selected_carrier=%s\nlast_searched_iso=%s\n' "$SELECTED_CARRIER" "$NEW_ISO" > "$MODPATH/settings"
 
-# Настройка безопасных прав доступа (POSIX-стандарт Magisk BusyBox)
+# Права доступа
 chmod 0600 "$MODPATH/settings" "$CARRIERS_DB"
 chmod 0755 "$MODPATH/service.sh" "$MODPATH/action.sh" "$MODPATH/bin_checker.sh" 2>/dev/null
 
