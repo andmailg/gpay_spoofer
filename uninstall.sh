@@ -1,7 +1,14 @@
 #!/system/bin/sh
-MODDIR="${0%/*}"
+# shellcheck shell=sh
+# GPay-Spoofer: uninstall.sh
+
+case "$0" in
+    */*) MODDIR="${0%/*}" ;;
+    *)   MODDIR="$(pwd)" ;;
+esac
 PROPS_FILE="$MODDIR/original_props"
 LOGFILE="$MODDIR/Gpay-Spoofer.log"
+SUFFIX=","   # должен совпадать со значением в service.sh и action.sh
 
 _set_prop() {
     if command -v resetprop >/dev/null 2>&1; then
@@ -17,56 +24,39 @@ _set_prop() {
     fi
 }
 
-_del_prop() {
-    if command -v resetprop >/dev/null 2>&1; then
-        resetprop --delete "$1" 2>/dev/null
-    elif [ -x /data/adb/ap/bin/kpcli ]; then
-        /data/adb/ap/bin/kpcli property set "$1" "" 2>/dev/null
-    elif [ -x /data/adb/ksu/bin/kpcli ]; then
-        /data/adb/ksu/bin/kpcli property set "$1" "" 2>/dev/null
-    elif command -v kpcli >/dev/null 2>&1; then
-        kpcli property set "$1" "" 2>/dev/null
-    fi
-}
-
 log_msg() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [UNINSTALL] $1" >> "$LOGFILE" 2>/dev/null
 }
 
-restore_prop() {
-    _prop="$1"
-    _val="$2"
-    if [ -n "$_val" ] && [ "$_val" != "Неизвестно" ]; then
-        _set_prop "$_prop" "$_val"
-    else
-        _del_prop "$_prop"
+_orig() {
+    grep "^$1=" "$PROPS_FILE" 2>/dev/null | head -n 1 | cut -d'"' -f2 | tr -d '\r'
+}
+
+# restore <prop> <ключ бэкапа>: возвращает только то, что модуль реально менял.
+# Если значения в бэкапе нет, свойство не трогаем (ничего не удаляем).
+restore() {
+    _v=$(_orig "$2")
+    if [ -n "$_v" ]; then
+        _set_prop "$1" "${_v}${SUFFIX}"
+        RESTORED=$((RESTORED + 1))
     fi
 }
 
+RESTORED=0
+
+# Останавливаем фоновый цикл service.sh, иначе он вернёт подмену
+pkill -f "$MODDIR/service.sh" 2>/dev/null
+
 if [ -f "$PROPS_FILE" ]; then
-    ORIG_NUMERIC=$(grep '^ORIG_NUMERIC=' "$PROPS_FILE" | cut -d'"' -f2)
-    ORIG_ISO=$(grep '^ORIG_ISO=' "$PROPS_FILE" | cut -d'"' -f2)
-    ORIG_ALPHA=$(grep '^ORIG_ALPHA=' "$PROPS_FILE" | cut -d'"' -f2)
-    ORIG_CDMA=$(grep '^ORIG_CDMA=' "$PROPS_FILE" | cut -d'"' -f2)
+    restore gsm.sim.operator.alpha       ORIG_ALPHA
+    restore gsm.operator.alpha           ORIG_OPERATOR_ALPHA
+    restore gsm.sim.operator.numeric     ORIG_SIM_NUMERIC
+    restore gsm.operator.numeric         ORIG_NUMERIC
+    restore gsm.sim.operator.iso-country ORIG_ISO
+    restore gsm.operator.iso-country     ORIG_OPERATOR_ISO
+    log_msg "Удаление модуля: восстановлено свойств: $RESTORED"
 else
-    ORIG_NUMERIC=$(getprop gsm.operator.numeric)
-    ORIG_ISO=$(getprop gsm.operator.iso-country)
-    ORIG_ALPHA=$(getprop gsm.operator.alpha)
-    ORIG_CDMA=$(getprop ro.cdma.home.operator.numeric)
+    log_msg "Удаление модуля: бэкап не найден, свойства вернутся после перезагрузки"
 fi
-
-restore_prop "gsm.operator.numeric" "$ORIG_NUMERIC"
-restore_prop "gsm.operator.iso-country" "$ORIG_ISO"
-restore_prop "gsm.operator.alpha" "$ORIG_ALPHA"
-restore_prop "ro.cdma.home.operator.numeric" "$ORIG_CDMA"
-
-for suffix in "" ".1" ".2"; do
-    restore_prop "gsm.sim.operator.numeric$suffix" "$ORIG_NUMERIC"
-    restore_prop "gsm.sim.operator.iso-country$suffix" "$ORIG_ISO"
-    restore_prop "gsm.sim.operator.alpha$suffix" "$ORIG_ALPHA"
-    restore_prop "gsm.operator.numeric$suffix" "$ORIG_NUMERIC"
-    restore_prop "gsm.operator.iso-country$suffix" "$ORIG_ISO"
-    restore_prop "gsm.operator.alpha$suffix" "$ORIG_ALPHA"
-done
 
 rm -f "$MODDIR/settings" "$MODDIR/carriers.db" "$MODDIR/original_props" 2>/dev/null
